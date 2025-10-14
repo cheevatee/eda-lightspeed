@@ -1,0 +1,22 @@
+# rulebooks/print-from-eventstream.yml
+- name: print all alerts from Event Stream
+  hosts: localhost
+
+  # Placeholder source (will be overridden by the Event Stream mapping)
+  sources:
+    - ansible.eda.webhook:
+        host: 0.0.0.0
+        port: 5000
+
+  rules:
+    - name: print raw event
+      condition: event is defined
+      action:
+        debug:
+          msg: "{{ event | to_nice_json }}"
+
+    - name: print alerts (payload.alerts)
+      condition: event.payload is defined and event.payload.alerts is defined
+      action:
+        debug:
+          msg: "{{ event.payload.alerts | to_nice_json }}"
