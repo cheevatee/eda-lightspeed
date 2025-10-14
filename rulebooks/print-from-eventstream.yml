@@ -15,7 +15,7 @@
         debug:
           msg: |
             === RAW EVENT ===
-            {{ event | to_nice_json }}
+            {{ event | to_json }}
 
     - name: print each alert under payload.alerts
       condition: event.payload is defined and event.payload.alerts is defined
@@ -23,7 +23,7 @@
         debug:
           msg: |
             === ALERTS (payload.alerts, {{ event.payload.alerts | length }}) ===
-            {{ event.payload.alerts | to_nice_json }}
+            {{ event.payload.alerts | to_json }}
 
     - name: print each alert if alerts is top-level
       condition: event.alerts is defined
@@ -31,4 +31,4 @@
         debug:
           msg: |
             === ALERTS (top-level alerts, {{ event.alerts | length }}) ===
-            {{ event.alerts | to_nice_json }}
+            {{ event.alerts | to_json }}
