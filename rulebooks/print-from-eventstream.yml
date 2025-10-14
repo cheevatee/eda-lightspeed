@@ -10,11 +10,11 @@
 
   rules:
     # Print the whole event as a string (no custom filters)
-    - name: print raw event
-      condition: event.payload is defined or event.alerts is defined
-      action:
-        debug:
-          msg: "RAW EVENT: {{ event }}"
+#    - name: print raw event
+#      condition: event.payload is defined or event.alerts is defined
+#      action:
+#        debug:
+#          msg: "RAW EVENT: {{ event }}"
 
     # If Alertmanager payload is under payload.alerts
     - name: print each alert under payload.alerts
@@ -39,23 +39,23 @@
             {% endfor %}
 
     # If alerts[] is top-level
-    - name: print each alert when top-level alerts exists
-      condition: event.alerts is defined
-      action:
-        debug:
-          msg: |
-            {% for a in event.alerts %}
-            [ALERT {{ loop.index }}]
-            status:      {{ a.status | default('') }}
-            alertname:   {{ a.labels.alertname | default('') }}
-            severity:    {{ a.labels.severity | default('') }}
-            namespace:   {{ a.labels.namespace | default('') }}
-            instance:    {{ a.labels.instance | default('') }}
-            startsAt:    {{ a.startsAt | default('') }}
-            endsAt:      {{ a.endsAt | default('') }}
-            summary:     {{ a.annotations.summary | default('') }}
-            description: {{ a.annotations.description | default('') }}
-            labels:      {{ a.labels | default({}) }}
-            annotations: {{ a.annotations | default({}) }}
-            -----
-            {% endfor %}
+#    - name: print each alert when top-level alerts exists
+#      condition: event.alerts is defined
+#      action:
+#        debug:
+#          msg: |
+#            {% for a in event.alerts %}
+#            [ALERT {{ loop.index }}]
+#            status:      {{ a.status | default('') }}
+#            alertname:   {{ a.labels.alertname | default('') }}
+#            severity:    {{ a.labels.severity | default('') }}
+#            namespace:   {{ a.labels.namespace | default('') }}
+#            instance:    {{ a.labels.instance | default('') }}
+#            startsAt:    {{ a.startsAt | default('') }}
+#            endsAt:      {{ a.endsAt | default('') }}
+#            summary:     {{ a.annotations.summary | default('') }}
+#            description: {{ a.annotations.description | default('') }}
+#            labels:      {{ a.labels | default({}) }}
+#            annotations: {{ a.annotations | default({}) }}
+#            -----
+#            {% endfor %}
