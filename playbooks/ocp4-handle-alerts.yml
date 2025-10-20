@@ -2,10 +2,10 @@
 - name: Handle Alertmanager alerts from EDA
   hosts: localhost
   gather_facts: false
-
-  vars:
-    alerts: "{{ alerts }}"
-    payload: "{{ payload }}"
+  vars_prompt:
+    - name: alerts
+      prompt: ""
+      private: false
 
   tasks:
     - name: Quick summary
