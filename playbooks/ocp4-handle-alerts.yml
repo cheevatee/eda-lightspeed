@@ -1,15 +1,37 @@
 ---
-- name: Handle Alertmanager alerts from EDA
+- name: Print alerts and payload from EDA
   hosts: localhost
   gather_facts: false
-  vars:
-    # Raw inputs from the rulebook (extra_vars)
-    alerts_raw: "{{ alerts | default(omit) }}"
-    payload_raw: "{{ payload | default(omit) }}"
 
   tasks:
-    - name: Show raw values as received by AAP
+    - name: Print alerts (raw)
       ansible.builtin.debug:
-        msg:
-          - "alerts (raw): {{ alerts_raw | default('<<undefined>>') }}"
-          - "payload (raw): {{ payload_raw | default('<<undefined>>') }}"
+        var: alerts
+      when: alerts is defined
+
+    - name: Print alerts (pretty YAML)
+      ansible.builtin.debug:
+        msg: "{{ alerts | to_nice_yaml }}"
+      when: alerts is defined
+
+    - name: One-line summary per alert (optional)
+      ansible.builtin.debug:
+        msg: >-
+          [{{ item.status | default('N/A') }}]
+          {{ item.labels.alertname | default(item.alertname | default('unknown_alert')) }}
+          ns={{ item.labels.namespace | default(item.namespace | default('N/A')) }}
+          pvc={{ item.labels.persistentvolumeclaim | default(item.persistentvolumeclaim | default('N/A')) }}
+          sev={{ item.labels.severity | default(item.severity | default('N/A')) }}
+          summary="{{ item.annotations.summary | default(item.summary | default(item.message | default(''))) }}"
+      loop: "{{ alerts }}"
+      when: alerts is defined
+
+    - name: Print payload (raw)
+      ansible.builtin.debug:
+        var: payload
+      when: payload is defined
+
+    - name: Print payload (pretty YAML)
+      ansible.builtin.debug:
+        msg: "{{ payload | to_nice_yaml }}"
+      when: payload is defined
