@@ -3,13 +3,9 @@
   hosts: localhost
   gather_facts: false
 
-  vars_prompt:
-    - name: alerts
-      prompt: ""
-      private: false
-    - name: payload
-      prompt: ""
-      private: false
+  vars:
+    alerts: "{{ ansible_eda.event.payload.alerts }}"
+    payload: "{{ ansible_eda.event.payload }}"
 
   tasks:
     - name: Dump all received variables
