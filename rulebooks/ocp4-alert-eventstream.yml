@@ -15,7 +15,7 @@
         - debug:
             msg: "RAW EVENT: {{ event.payload.alerts }}"
         - debug:
-            msg: |-
+            msg: |
               {% for a in event.payload.alerts %}
               [ALERT {{ loop.index }}]
               status:      {{ a.status | default('') }}
@@ -31,3 +31,4 @@
               annotations: {{ a.annotations | default({}) }}
               -----
               {% endfor %}
+
