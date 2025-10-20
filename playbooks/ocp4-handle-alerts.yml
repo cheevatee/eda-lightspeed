@@ -1,0 +1,35 @@
+---
+- name: Handle Alertmanager alerts from EDA
+  hosts: localhost
+  gather_facts: false
+
+  # Use the 'alerts' extra var if provided; otherwise fall back to ansible_eda
+  vars:
+    alerts_from_eda: "{{ (ansible_eda.event.payload.alerts
+                           if (ansible_eda is defined and ansible_eda.event is defined and ansible_eda.event.payload is defined and ansible_eda.event.payload.alerts is defined)
+                           else []) }}"
+    alerts: "{{ alerts | default(alerts_from_eda) }}"
+
+  tasks:
+    - name: Show how many alerts we got
+      debug:
+        msg: "Received {{ alerts | length }} alerts"
+
+    - name: Print each alert
+      loop: "{{ alerts }}"
+      loop_control:
+        label: "{{ (item.labels.alertname | default('unknown')) ~ ' (' ~ (item.status | default('')) ~ ')' }}"
+      debug:
+        msg: |
+          [ALERT]
+          status:      {{ item.status | default('') }}
+          alertname:   {{ item.labels.alertname | default('') }}
+          severity:    {{ item.labels.severity | default('') }}
+          namespace:   {{ item.labels.namespace | default('') }}
+          instance:    {{ item.labels.instance | default('') }}
+          startsAt:    {{ item.startsAt | default('') }}
+          endsAt:      {{ item.endsAt | default('') }}
+          summary:     {{ item.annotations.summary | default('') }}
+          description: {{ item.annotations.description | default('') }}
+          labels:      {{ item.labels | default({}) }}
+          annotations: {{ item.annotations | default({}) }}
