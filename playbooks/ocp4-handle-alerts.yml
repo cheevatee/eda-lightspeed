@@ -18,20 +18,20 @@
     - name: "Print each alert (one task per alert)"
       ansible.builtin.debug:
         msg: |
-            [ALERT {{ ansible_loop.index }}]
-            status:     {{ item.status | default('') }}
-            alertname:  {{ item.labels.alertname | default('') }}
-            severity:   {{ item.labels.severity | default('') }}
-            namespace:  {{ item.labels.namespace | default('') }}
-            instance:   {{ item.labels.instance | default('') }}
-            startsAt:   {{ item.startsAt | default('') }}
-            endsAt:     {{ item.endsAt | default('') }}
-            summary:    {{ item.annotations.summary | default('') }}
-            description: {{ item.annotations.description | default('') }}
-            labels:     {{ item.labels | default({}) }}
-            annotations: {{ item.annotations | default({}) }}
-            -----
-
+          [ALERT {{ loop.index }}]
+          status:     {{ item.status | default('') }}
+          alertname:  {{ item.labels.alertname | default('') }}
+          severity:   {{ item.labels.severity | default('') }}
+          namespace:  {{ item.labels.namespace | default('') }}
+          instance:   {{ item.labels.instance | default('') }}
+          startsAt:   {{ item.startsAt | default('') }}
+          endsAt:     {{ item.endsAt | default('') }}
+          summary:    {{ item.annotations.summary | default('') }}
+          description: {{ item.annotations.description | default('') }}
+          labels:     {{ item.labels | default({}) }}
+          annotations: {{ item.annotations | default({}) }}
+          -----
+      
       # This loops over the 'alerts' variable passed from EDA
       loop: "{{ alerts }}"
       
