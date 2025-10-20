@@ -4,30 +4,46 @@
   gather_facts: false
 
   vars:
-    alerts: "{{ ansible_eda.event.payload.alerts }}"
-    payload: "{{ ansible_eda.event.payload }}"
+    # If launched by EDA directly, ansible_eda may exist; if launched by Controller, rely on extra_vars.
+    _from_eda: "{{ (ansible_eda.event if (ansible_eda is defined and ansible_eda.event is defined) else {}) }}"
+    payload_effective: "{{ payload | default(_from_eda.payload | default({})) }}"
+    alerts_effective: "{{ alerts | default(payload_effective.alerts | default([])) }}"
 
   tasks:
-    - name: Dump all received variables
+    - name: Validate inputs
+      assert:
+        that:
+          - payload_effective is mapping
+          - alerts_effective is sequence
+        success_msg: "Inputs OK: alerts={{ alerts_effective | length }}"
+        fail_msg: "Unexpected shapes → payload={{ payload_effective | type_debug }}, alerts={{ alerts_effective | type_debug }}"
+
+    - name: Quick summary
       debug:
-        var: vars
+        msg:
+          - "receiver: {{ payload_effective.receiver | default('') }}"
+          - "groupKey: {{ payload_effective.groupKey | default('') }}"
+          - "num alerts: {{ alerts_effective | length }}"
 
     - name: Print each alert (if any)
-      when: alerts_effective is iterable and (alerts_effective | length) > 0
-      loop: "{{ alerts }}"
+      when: alerts_effective | length > 0
+      loop: "{{ alerts_effective }}"
       loop_control:
         label: "{{ (item.labels.alertname | default('unknown')) ~ ' (' ~ (item.status | default('')) ~ ')' }}"
+      vars:
+        _labels: "{{ item.labels | default({}) }}"
+        _ann: "{{ item.annotations | default({}) }}"
       debug:
         msg: |
           [ALERT]
           status:      {{ item.status | default('') }}
-          alertname:   {{ item.labels.alertname | default('') }}
-          severity:    {{ item.labels.severity | default('') }}
-          namespace:   {{ item.labels.namespace | default('') }}
-          instance:    {{ item.labels.instance | default('') }}
+          alertname:   {{ _labels.alertname | default('') }}
+          severity:    {{ _labels.severity | default('') }}
+          namespace:   {{ _labels.namespace | default('') }}
+          instance:    {{ _labels.instance | default('') }}
           startsAt:    {{ item.startsAt | default('') }}
           endsAt:      {{ item.endsAt | default('') }}
-          summary:     {{ item.annotations.summary | default('') }}
-          description: {{ item.annotations.description | default('') }}
-          labels:      {{ item.labels | default({}) }}
-          annotations: {{ item.annotations | default({}) }}
+          summary:     {{ _ann.summary | default('') }}
+          description: {{ _ann.description | default('') }}
+          labels:      {{ _labels }}
+          annotations: {{ _ann }}
