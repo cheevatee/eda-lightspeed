@@ -20,7 +20,5 @@
             job_args:
               # These appear to AAP as extra vars (see notes below)
               extra_vars:
-                alerts: "This is test alert!!!"
-                payload: "This is test payload!!!"
-                #alerts: "{{ event.payload.alerts }}"
-                #payload: "{{ event.payload }}"       # optional full payload
+                alerts: "{{ event.payload.alerts }}"
+                payload: "{{ event.payload }}"       # optional full payload
