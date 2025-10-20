@@ -4,46 +4,10 @@
   gather_facts: false
 
   vars:
-    # If launched by EDA directly, ansible_eda may exist; if launched by Controller, rely on extra_vars.
-    _from_eda: "{{ (ansible_eda.event if (ansible_eda is defined and ansible_eda.event is defined) else {}) }}"
-    payload_effective: "{{ payload | default(_from_eda.payload | default({})) }}"
-    alerts_effective: "{{ alerts | default(payload_effective.alerts | default([])) }}"
+    payload: "{{ ansible_eda.event.payload }}"
+    alerts: "{{ ansible_eda.event.payload.alerts }}"
 
   tasks:
-    - name: Validate inputs
-      assert:
-        that:
-          - payload_effective is mapping
-          - alerts_effective is sequence
-        success_msg: "Inputs OK: alerts={{ alerts_effective | length }}"
-        fail_msg: "Unexpected shapes → payload={{ payload_effective | type_debug }}, alerts={{ alerts_effective | type_debug }}"
-
     - name: Quick summary
       debug:
-        msg:
-          - "receiver: {{ payload_effective.receiver | default('') }}"
-          - "groupKey: {{ payload_effective.groupKey | default('') }}"
-          - "num alerts: {{ alerts_effective | length }}"
-
-    - name: Print each alert (if any)
-      when: alerts_effective | length > 0
-      loop: "{{ alerts_effective }}"
-      loop_control:
-        label: "{{ (item.labels.alertname | default('unknown')) ~ ' (' ~ (item.status | default('')) ~ ')' }}"
-      vars:
-        _labels: "{{ item.labels | default({}) }}"
-        _ann: "{{ item.annotations | default({}) }}"
-      debug:
-        msg: |
-          [ALERT]
-          status:      {{ item.status | default('') }}
-          alertname:   {{ _labels.alertname | default('') }}
-          severity:    {{ _labels.severity | default('') }}
-          namespace:   {{ _labels.namespace | default('') }}
-          instance:    {{ _labels.instance | default('') }}
-          startsAt:    {{ item.startsAt | default('') }}
-          endsAt:      {{ item.endsAt | default('') }}
-          summary:     {{ _ann.summary | default('') }}
-          description: {{ _ann.description | default('') }}
-          labels:      {{ _labels }}
-          annotations: {{ _ann }}
+        msg: "{{ alerts }}"
