@@ -12,6 +12,6 @@
     - name: print each alert under payload.alerts
       condition: event.payload is defined and event.payload.alerts is defined
       actions:
-        debug:
-          msg: "RAW EVENT: {{ event.payload.alerts }}"
+        - debug:
+            msg: "RAW EVENT: {{ event.payload.alerts }}"
 
