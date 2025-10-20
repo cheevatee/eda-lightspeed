@@ -14,21 +14,4 @@
       actions:
         - debug:
             msg: "RAW EVENT: {{ event.payload.alerts }}"
-        - debug:
-            msg: |
-              {% for a in event.payload.alerts %}
-              [ALERT {{ loop.index }}]
-              status:      {{ a.status | default('') }}
-              alertname:   {{ a.labels.alertname | default('') }}
-              severity:    {{ a.labels.severity | default('') }}
-              namespace:   {{ a.labels.namespace | default('') }}
-              instance:    {{ a.labels.instance | default('') }}
-              startsAt:    {{ a.startsAt | default('') }}
-              endsAt:      {{ a.endsAt | default('') }}
-              summary:     {{ a.annotations.summary | default('') }}
-              description: {{ a.annotations.description | default('') }}
-              labels:      {{ a.labels | default({}) }}
-              annotations: {{ a.annotations | default({}) }}
-              -----
-              {% endfor %}
 
