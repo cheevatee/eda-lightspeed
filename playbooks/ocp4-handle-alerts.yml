@@ -2,12 +2,14 @@
 - name: Handle Alertmanager alerts from EDA
   hosts: localhost
   gather_facts: false
-  vars_prompt:
-    - name: alerts
-      prompt: ""
-      private: false
+  vars:
+    # Raw inputs from the rulebook (extra_vars)
+    alerts_raw: "{{ alerts | default(omit) }}"
+    payload_raw: "{{ payload | default(omit) }}"
 
   tasks:
-    - name: Quick summary
-      debug:
-        msg: "{{ alerts }}"
+    - name: Show raw values as received by AAP
+      ansible.builtin.debug:
+        msg:
+          - "alerts (raw): {{ alerts_raw | default('<<undefined>>') }}"
+          - "payload (raw): {{ payload_raw | default('<<undefined>>') }}"
