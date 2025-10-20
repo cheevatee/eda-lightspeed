@@ -4,8 +4,8 @@
   gather_facts: false
 
   vars:
-    payload: "{{ ansible_eda.event.payload }}"
-    alerts: "{{ ansible_eda.event.payload.alerts }}"
+    alerts: "{{ alerts }}"
+    payload: "{{ payload }}"
 
   tasks:
     - name: Quick summary
