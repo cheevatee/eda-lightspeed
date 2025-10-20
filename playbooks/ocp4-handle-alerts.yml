@@ -3,32 +3,22 @@
   hosts: localhost
   gather_facts: false
 
-  vars:
-    # Safe fallback pulled from the EDA-injected context
-    alerts_from_eda: >-
-      {{
-        (ansible_eda.event.payload.alerts)
-        if (ansible_eda is defined
-            and ansible_eda.event is defined
-            and ansible_eda.event.payload is defined
-            and ansible_eda.event.payload.alerts is defined)
-        else []
-      }}
+  vars_prompt:
+    - name: alerts
+      prompt: ""
+      private: false
+    - name: payload
+      prompt: ""
+      private: false
 
   tasks:
-    - name: Choose alerts from extra_vars if provided, else use EDA fallback
-      set_fact:
-        alerts_effective: "{{ (alerts if (alerts is defined) else alerts_from_eda) }}"
-
-    - name: Quick sanity check of the data type and count
+    - name: Dump all received variables
       debug:
-        msg:
-          - "type={{ alerts_effective | type_debug }}"
-          - "count={{ (alerts_effective | length) if (alerts_effective is iterable) else 'N/A' }}"
+        var: vars
 
     - name: Print each alert (if any)
       when: alerts_effective is iterable and (alerts_effective | length) > 0
-      loop: "{{ alerts_effective }}"
+      loop: "{{ alerts }}"
       loop_control:
         label: "{{ (item.labels.alertname | default('unknown')) ~ ' (' ~ (item.status | default('')) ~ ')' }}"
       debug:
