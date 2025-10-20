@@ -1,0 +1,33 @@
+# rulebooks/print-from-eventstream.yml
+- name: print alerts coming from Event Stream
+  hosts: localhost
+
+  # Placeholder so the Event Stream can be mapped to a source
+  sources:
+    - ansible.eda.webhook:
+        host: 0.0.0.0
+        port: 5000
+
+  rules:
+    - name: print each alert under payload.alerts
+      condition: event.payload.alerts is defined and event.payload.alerts | length > 0
+      actions:
+        - debug:
+            msg: "RAW EVENT: {{ event.payload.alerts }}"
+        - debug:
+            msg: |-
+              {% for a in event.payload.alerts %}
+              [ALERT {{ loop.index }}]
+              status:      {{ a.status | default('') }}
+              alertname:   {{ a.labels.alertname | default('') }}
+              severity:    {{ a.labels.severity | default('') }}
+              namespace:   {{ a.labels.namespace | default('') }}
+              instance:    {{ a.labels.instance | default('') }}
+              startsAt:    {{ a.startsAt | default('') }}
+              endsAt:      {{ a.endsAt | default('') }}
+              summary:     {{ a.annotations.summary | default('') }}
+              description: {{ a.annotations.description | default('') }}
+              labels:      {{ a.labels | default({}) }}
+              annotations: {{ a.annotations | default({}) }}
+              -----
+              {% endfor %}
