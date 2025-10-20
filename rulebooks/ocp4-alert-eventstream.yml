@@ -22,4 +22,3 @@
               extra_vars:
                 alerts: "{{ event.payload.alerts }}"
                 payload: "{{ event.payload }}"       # optional full payload
-                alert_count: "{{ event.payload.alerts | length }}"
