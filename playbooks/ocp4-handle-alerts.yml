@@ -1,37 +1,16 @@
 ---
-- name: Print alerts and payload from EDA
+- name: Print Alerts and Payload from EDA
   hosts: localhost
   gather_facts: false
+  connection: local
 
   tasks:
-    - name: Print alerts (raw)
+    - name: Print the 'alerts' variable
       ansible.builtin.debug:
-        var: alerts
+        msg: "Received 'alerts' data: {{ alerts }}"
       when: alerts is defined
 
-    - name: Print alerts (pretty YAML)
+    - name: Print the full 'payload' variable
       ansible.builtin.debug:
-        msg: "{{ alerts | to_nice_yaml }}"
-      when: alerts is defined
-
-    - name: One-line summary per alert (optional)
-      ansible.builtin.debug:
-        msg: >-
-          [{{ item.status | default('N/A') }}]
-          {{ item.labels.alertname | default(item.alertname | default('unknown_alert')) }}
-          ns={{ item.labels.namespace | default(item.namespace | default('N/A')) }}
-          pvc={{ item.labels.persistentvolumeclaim | default(item.persistentvolumeclaim | default('N/A')) }}
-          sev={{ item.labels.severity | default(item.severity | default('N/A')) }}
-          summary="{{ item.annotations.summary | default(item.summary | default(item.message | default(''))) }}"
-      loop: "{{ alerts }}"
-      when: alerts is defined
-
-    - name: Print payload (raw)
-      ansible.builtin.debug:
-        var: payload
-      when: payload is defined
-
-    - name: Print payload (pretty YAML)
-      ansible.builtin.debug:
-        msg: "{{ payload | to_nice_yaml }}"
+        msg: "Received 'payload' data: {{ payload }}"
       when: payload is defined
