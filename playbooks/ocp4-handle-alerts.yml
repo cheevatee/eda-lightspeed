@@ -3,7 +3,9 @@
   hosts: localhost
   gather_facts: false
   connection: local
-
+  vars:
+    repo_name: "eda-lightspeed"
+    
   tasks:
 #    - name: Print the 'alerts' variable
 #      ansible.builtin.debug:
@@ -29,3 +31,6 @@
       ansible.builtin.debug:
         msg: "Received 'description' data: {{ description }}"
       when: description is defined
+
+    - name: List entries in cloned repo
+      ansible.builtin.command: ls -1R /var/lib/awx/projects/"{{ repo_name }}"/
