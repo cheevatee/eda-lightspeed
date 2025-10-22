@@ -33,4 +33,4 @@
       when: description is defined
 
     - name: List entries in cloned repo
-      ansible.builtin.command: "ls -1"
+      ansible.builtin.command: "pwd"
