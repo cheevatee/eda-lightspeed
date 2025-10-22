@@ -22,28 +22,10 @@
           Namespace: {{ item.1.labels.namespace | default('N/A') }}
           Summary:   {{ item.1.annotations.summary | default('N/A') }}
           Description: {{ item.1.annotations.description | default('N/A') }}
-          -----
-      
+          -----      
       # Loops over the 'alerts' list passed from EDA
       # item.0 is the index (0, 1, 2...)
       # item.1 is the alert object itself
-      with_indexed_items: "{{ alerts }}"
-        
+      with_indexed_items: "{{ alerts }}"        
       when: alerts is defined and alerts | length > 0
 
-
-    - name: Run the remediation playbook for each alert
-      ansible.builtin.include_playbook: remediation_playbook.yml
-      vars:
-        # These variables are passed to remediation_playbook.yml
-        alert_name: "{{ item.1.labels.alertname | default('N/A') }}"
-        alert_namespace: "{{ item.1.labels.namespace | default('N/A') }}"
-        alert_summary: "{{ item.1.annotations.summary | default('N/A') }}"
-        alert_description: "{{ item.1.annotations.description | default('N/A') }}"
-
-    # This loops over the 'alerts' list passed from EDA
-    # item.0 is the index (0, 1, 2...)
-    # item.1 is the alert object itself
-      with_indexed_items: "{{ alerts }}"
-
-      when: alerts is defined and alerts | length > 0
