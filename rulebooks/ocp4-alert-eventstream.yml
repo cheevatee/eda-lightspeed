@@ -17,8 +17,8 @@
         - debug:
             msg: |
               namespace: {{ event.payload.alerts.0.labels.namespace | default('') }}
-              summary: {{ event.payload.alerts.0.labels.summary | default('') }}
-              description {{ event.payload.alerts.0.labels.description | default('') }}
+              summary: {{ event.payload.alerts.0.annotations.summary | default('') }}
+              description {{ event.payload.alerts.0.annotations.description | default('') }}
 #        - run_job_template:
 #            name: "Handle Alertmanager alerts from EDA"
 #            organization: "Default"
