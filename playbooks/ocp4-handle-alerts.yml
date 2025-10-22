@@ -5,12 +5,27 @@
   connection: local
 
   tasks:
-    - name: Print the 'alerts' variable
-      ansible.builtin.debug:
-        msg: "Received 'alerts' data: {{ alerts }}"
-      when: alerts is defined
+#    - name: Print the 'alerts' variable
+#      ansible.builtin.debug:
+#        msg: "Received 'alerts' data: {{ alerts }}"
+#      when: alerts is defined
 
-    - name: Print the full 'payload' variable
+#    - name: Print the full 'payload' variable
+#      ansible.builtin.debug:
+#        msg: "Received 'payload' data: {{ payload }}"
+#      when: payload is defined
+      
+    - name: Print the 'namespace' variable
       ansible.builtin.debug:
-        msg: "Received 'payload' data: {{ payload }}"
-      when: payload is defined
+        msg: "Received 'namespace' data: {{ namespace }}"
+      when: namespace is defined
+
+    - name: Print the 'summary' variable
+      ansible.builtin.debug:
+        msg: "Received 'summary' data: {{ summary }}"
+      when: summary is defined
+
+    - name: Print the 'description' variable
+      ansible.builtin.debug:
+        msg: "Received 'description' data: {{ description }}"
+      when: description is defined
