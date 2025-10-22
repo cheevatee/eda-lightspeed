@@ -17,17 +17,17 @@
 
     - name: Print the full 'namespace' variable
       ansible.builtin.debug:
-        msg: "Received '' data: {{ namespace }}"
+        msg: "Received 'namespace' data: {{ namespace }}"
       when: namespace is defined
 
     - name: Print the full 'summary' variable
       ansible.builtin.debug:
-        msg: "Received '' data: {{ summary }}"
+        msg: "Received 'summary' data: {{ summary }}"
       when: summary is defined
 
     - name: Print the full 'description' variable
       ansible.builtin.debug:
-        msg: "Received '' data: {{ description }}"
+        msg: "Received 'description' data: {{ description }}"
       when: description is defined
 
 
