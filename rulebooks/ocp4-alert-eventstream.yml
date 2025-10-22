@@ -22,6 +22,6 @@
               extra_vars:
                 alerts: "{{ event.payload.alerts }}"
                 payload: "{{ event.payload }}" # optional full payload
-                namespace: "{{ event.payload.alerts.labels.namespace }}"
-                summary: "{{ event.payload.alerts.annotations.summary }}"
-                description: "{{ event.payload.alerts.annotations.description }}"
+#                namespace: "{{ event.payload.alerts.labels.namespace }}"
+#                summary: "{{ event.payload.alerts.annotations.summary }}"
+#                description: "{{ event.payload.alerts.annotations.description }}"
