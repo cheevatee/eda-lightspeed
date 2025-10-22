@@ -12,21 +12,21 @@
     - name: print each alert under payload.alerts
       condition: event.payload is defined and event.payload.alerts is defined
       actions:
-        - debug:
-            msg: "RAW EVENT: {{ event.payload.alerts }}"
+#        - debug:
+#            msg: "RAW EVENT: {{ event.payload.alerts }}"
         - debug:
             msg: |
               namespace: {{ event.payload.alerts.0.labels.namespace | default('') }}
               summary: {{ event.payload.alerts.0.annotations.summary | default('') }}
               description {{ event.payload.alerts.0.annotations.description | default('') }}
-#        - run_job_template:
-#            name: "Handle Alertmanager alerts from EDA"
-#            organization: "Default"
-#            job_args:
+        - run_job_template:
+            name: "Handle Alertmanager alerts from EDA"
+            organization: "Default"
+            job_args:
               # These appear to AAP as extra vars (see notes below)
-#              extra_vars:
+              extra_vars:
 #                alerts: "{{ event.payload.alerts }}"
 #                payload: "{{ event.payload }}" # optional full payload
-#                namespace: "{{ event.payload.alerts.labels.namespace }}"
-#                summary: "{{ event.payload.alerts.annotations.summary }}"
-#                description: "{{ event.payload.alerts.annotations.description }}"
+                namespace: "{{ event.payload.alerts.0.labels.namespace | default('') }}"
+                summary: "{{ event.payload.alerts.0.annotations.summary | default('') }}"
+                description: "{{ event.payload.alerts.0.annotations.description | default('') }}"
