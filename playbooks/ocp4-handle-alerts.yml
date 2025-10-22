@@ -15,17 +15,20 @@
         msg: "Received 'payload' data: {{ payload }}"
       when: payload is defined
 
-    - name: Print key alert fields
+    - name: Print the full 'namespace' variable
       ansible.builtin.debug:
-        msg: |
-          Alert:     {{ item.1.labels.alertname | default('N/A') }}
-          Namespace: {{ item.1.labels.namespace | default('N/A') }}
-          Summary:   {{ item.1.annotations.summary | default('N/A') }}
-          Description: {{ item.1.annotations.description | default('N/A') }}
-          -----      
-      # Loops over the 'alerts' list passed from EDA
-      # item.0 is the index (0, 1, 2...)
-      # item.1 is the alert object itself
-      with_indexed_items: "{{ alerts }}"        
-      when: alerts is defined and alerts | length > 0
+        msg: "Received '' data: {{ namespace }}"
+      when: namespace is defined
+
+    - name: Print the full 'summary' variable
+      ansible.builtin.debug:
+        msg: "Received '' data: {{ summary }}"
+      when: summary is defined
+
+    - name: Print the full 'description' variable
+      ansible.builtin.debug:
+        msg: "Received '' data: {{ description }}"
+      when: description is defined
+
+
 
