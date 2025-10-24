@@ -1,0 +1,32 @@
+---
+- name: Send alert to Slack via webhook
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    slack_webhook_url: "{{ lookup('env','SLACK_WEBHOOK_URL') | default(webhook_url | default(''), true) }}"
+    severity: "{{ severity | default('warning') }}"
+    namespace: "{{ namespace | default('test2') }}"
+    summary: "{{ summary | default('PersistentVolume is filling up (warning).') }}"
+    description: "{{ description | default('The PersistentVolume claimed by httpd-pvc2 in Namespace test2 is only 5.896% free.') }}"
+    slack_text: |-
+      [OpenShift Alert !!!]
+      Severity={{ severity }}
+      Namespace={{ namespace }}
+      Summary={{ summary }}
+      Description={{ description }}
+
+  tasks:
+    - name: Fail if webhook is missing
+      ansible.builtin.fail:
+        msg: "Slack webhook URL not set"
+      when: not slack_webhook_url
+
+    - name: Post message to Slack
+      ansible.builtin.uri:
+        url: "{{ slack_webhook_url }}"
+        method: POST
+        body_format: json
+        body:
+          text: "{{ slack_text }}"
+          mrkdwn: true
