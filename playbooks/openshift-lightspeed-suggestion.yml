@@ -8,12 +8,12 @@
     # Set via env or override with --extra-vars
     ols_route: "{{ lookup('env','OLS_ROUTE') | default('', true) }}"
     ols_token: "{{ lookup('env','OLS_TOKEN') | default('', true) }}"
-    ols_query: >-
-      Find a solution to solve the following issue from alert 
-      severity: "{{ severity }}"
-      namespace: "{{ namespace }}"
-      summary: "{{ summary }}"
-      description: "{{ description }}"
+    ols_query: |
+      Find a solution to solve the following issue from alert
+      severity: {{ severity | default('') }}
+      namespace: {{ namespace | default('') }}
+      summary: {{ summary | default('') }}
+      description: {{ description | default('') }}
 
   tasks:
 
@@ -26,6 +26,10 @@
         - summary
         - description
       when: vars[item] is defined
+
+    - name: Show OLS query
+      ansible.builtin.debug:
+        msg: "{{ ols_query }}"
 
     - name: Ensure ROUTE and TOKEN are provided
       assert:
