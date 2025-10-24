@@ -16,6 +16,7 @@
 #            msg: "RAW EVENT: {{ event.payload.alerts }}"
         - debug:
             msg: |
+              severity: {{ event.payload.alerts.0.labels.severity | default('') }}
               namespace: {{ event.payload.alerts.0.labels.namespace | default('') }}
               summary: {{ event.payload.alerts.0.annotations.summary | default('') }}
               description {{ event.payload.alerts.0.annotations.description | default('') }}
@@ -27,6 +28,7 @@
               extra_vars:
 #                alerts: "{{ event.payload.alerts }}"
 #                payload: "{{ event.payload }}" # optional full payload
+                severity: "{{ event.payload.alerts.0.labels.severity | default('') }}"
                 namespace: "{{ event.payload.alerts.0.labels.namespace | default('') }}"
                 summary: "{{ event.payload.alerts.0.annotations.summary | default('') }}"
                 description: "{{ event.payload.alerts.0.annotations.description | default('') }}"
