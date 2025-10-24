@@ -21,7 +21,7 @@
               summary: {{ event.payload.alerts.0.annotations.summary | default('') }}
               description {{ event.payload.alerts.0.annotations.description | default('') }}
         - run_job_template:
-            name: "Handle Alertmanager alerts from EDA"
+            name: "EDA Lightspeed"
             organization: "Default"
             job_args:
               # These appear to AAP as extra vars (see notes below)
