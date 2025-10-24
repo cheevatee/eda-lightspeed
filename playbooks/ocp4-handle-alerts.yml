@@ -16,7 +16,12 @@
 #      ansible.builtin.debug:
 #        msg: "Received 'payload' data: {{ payload }}"
 #      when: payload is defined
-      
+
+    - name: Print the 'severity' variable
+      ansible.builtin.debug:
+        msg: "Received 'severity' data: {{ severity }}"
+      when: severity is defined
+
     - name: Print the 'namespace' variable
       ansible.builtin.debug:
         msg: "Received 'namespace' data: {{ namespace }}"
