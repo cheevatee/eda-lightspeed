@@ -8,7 +8,7 @@
     # Set via env or override with --extra-vars
     ols_route: "{{ lookup('env','OLS_ROUTE') | default('', true) }}"
     ols_token: "{{ lookup('env','OLS_TOKEN') | default('', true) }}"
-    ols_query: |
+    ols_query: >-
       Find a solution to solve the following issue from alert
       severity: {{ severity | default('') }}
       namespace: {{ namespace | default('') }}
