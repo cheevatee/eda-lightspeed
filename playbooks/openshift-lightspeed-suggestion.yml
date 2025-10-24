@@ -10,10 +10,10 @@
     ols_token: "{{ lookup('env','OLS_TOKEN') | default('', true) }}"
     ols_query: >-
       Find a solution to solve the following issue from alert 
-      severity: warning
-      namespace: test2
-      summary: PersistentVolume is filling up (warning)
-      description: The PersistentVolume claimed by httpd-pvc2 in Namespace test2 is only 5.896% free.
+      severity: "{{ severity }}"
+      namespace: "{{ namespace }}"
+      summary: "{{ summary }}"
+      description: "{{ description }}"
 
   tasks:
 
