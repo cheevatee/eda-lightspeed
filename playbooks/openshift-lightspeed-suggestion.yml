@@ -6,8 +6,8 @@
 
   vars:
     # Set via env or override with --extra-vars
-    ols_route: "{{ lookup('env','ols_route') | default('', true) }}"
-    ols_token: "{{ lookup('env','ols_token') | default('', true) }}"
+    ols_route: "{{ lookup('env','OLS_ROUTE') | default('', true) }}"
+    ols_token: "{{ lookup('env','OLS_TOKEN') | default('', true) }}"
     ols_query: >-
       Find a solution to solve the following issue from alert 
       severity: warning
