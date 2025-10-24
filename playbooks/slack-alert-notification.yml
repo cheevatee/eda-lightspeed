@@ -6,7 +6,7 @@
   vars:
     slack_webhook_url: "{{ lookup('env','SLACK_WEBHOOK_URL') | default(webhook_url | default(''), true) }}"
     slack_text: |-
-      *[OpenShift Alert !!!]*
+      :alerttruning: *[OpenShift Alert !!!]* :alerttruning:
       *Severity:* {{ severity | default('warning') }}
       *Namespace:* {{ namespace | default('test2') }}
       *Summary:* {{ summary | default('PersistentVolume is filling up (warning).') }}
