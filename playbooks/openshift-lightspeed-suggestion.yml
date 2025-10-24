@@ -20,10 +20,10 @@
     - name: Print variables (only those defined)
       ansible.builtin.debug:
         msg: |
-          {% if severity is defined %}Received 'severity' data: {{ severity }}\n{% endif %}
-          {% if namespace is defined %}Received 'namespace' data: {{ namespace }}\n{% endif %}
-          {% if summary is defined %}Received 'summary' data: {{ summary }}\n{% endif %}
-          {% if description is defined %}Received 'description' data: {{ description }}\n{% endif %}
+          {% if severity is defined %}Received 'severity' data: {{ severity }}\\n{% endif %}
+          {% if namespace is defined %}Received 'namespace' data: {{ namespace }}\\n{% endif %}
+          {% if summary is defined %}Received 'summary' data: {{ summary }}\\n{% endif %}
+          {% if description is defined %}Received 'description' data: {{ description }}\\n{% endif %}
 
     - name: Ensure ROUTE and TOKEN are provided
       assert:
