@@ -33,8 +33,7 @@
         curl -k -X POST "$ROUTE/v1/streaming_query" \
           -H "Authorization: Bearer $TOKEN" \
           -H "Content-Type: application/json" \
-          -d '{{ {"query": ols_query} | to_json }}' \
-        | awk 'NR==1{print;next} /^---$/ && seen{exit} {print; seen=1}'
+          -d '{{ {"query": ols_query} }}'
       args:
         executable: /bin/bash
       register: ols_response
