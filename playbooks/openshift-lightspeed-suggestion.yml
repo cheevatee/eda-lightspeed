@@ -13,7 +13,8 @@
       severity: {{ severity | default('') }},
       namespace: {{ namespace | default('') }},
       summary: {{ summary | default('') }},
-      description: {{ description | default('') }},
+      description: {{ description | default('') }}
+      Do not ask follow-up questions or offer additional guidance. Do not end with any questions.
 
   tasks:
 
