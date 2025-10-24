@@ -7,10 +7,10 @@
     slack_webhook_url: "{{ lookup('env','SLACK_WEBHOOK_URL') | default(webhook_url | default(''), true) }}"
     slack_text: |-
       [OpenShift Alert !!!]
-      severity={{ severity | default('warning') }}
-      namespace={{ namespace | default('test2') }}
-      summary={{ summary | default('PersistentVolume is filling up (warning).') }}
-      description={{ description | default('The PersistentVolume claimed by httpd-pvc2 in Namespace test2 is only 5.896% free.') }}
+      Severity: {{ severity | default('warning') }}
+      Namespace: {{ namespace | default('test2') }}
+      Summary: {{ summary | default('PersistentVolume is filling up (warning).') }}
+      Description: {{ description | default('The PersistentVolume claimed by httpd-pvc2 in Namespace test2 is only 5.896% free.') }}
 
   tasks:
     - name: Fail if webhook is missing
