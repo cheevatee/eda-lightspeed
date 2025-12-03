@@ -25,6 +25,7 @@
               ---------------------------------------------------
         - run_job_template:
             name: "Handle Dynatrace problems from EDA"
+            organization: "Default"
 ##        - run_workflow_template:
 ##            name: "EDA Lightspeed"
 ##            organization: "Default"
