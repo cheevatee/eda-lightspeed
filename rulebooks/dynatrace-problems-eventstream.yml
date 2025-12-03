@@ -19,7 +19,7 @@
               event_id: {{ event.payload.eventData.display_id | default('') }}
               event_cluster: {{ event.payload.eventData.k8s.cluster.name | default('') }}
               event_name: {{ event.payload.eventData.event.name | default('') }}
-              event_namespace: {{ event.payload.eventData.k8s.namespace.name | default('') }}
+              event_namespace: {{ event.payload.eventData.k8s.namespace.name.0 | default('') }}
               event_description {{ event.payload.eventData.event.description | default('') }}
 #        - run_job_template:
 #            name: "Handle Alertmanager alerts from EDA"
