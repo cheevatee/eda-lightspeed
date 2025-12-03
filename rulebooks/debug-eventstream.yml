@@ -1,0 +1,17 @@
+# rulebooks/debug-eventstream.yml
+- name: print event coming from Event Stream
+  hosts: localhost
+
+  # Placeholder so the Event Stream can be mapped to a source
+  sources:
+    - ansible.eda.webhook:
+        host: 0.0.0.0
+        port: 5000
+  rules:
+    - name: Catch and print everything
+      condition: true
+      actions:
+        - print_event:
+            pretty: true
+        - debug:
+            msg: "Received an event! The payload is: {{ event.payload }}"
