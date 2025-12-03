@@ -16,11 +16,13 @@
 #            msg: "RAW EVENT: {{ event.payload.eventData }}"
         - debug:
             msg: |
-              event_id: {{ event.payload.eventData.display_id | default('') }}
-              event_cluster: {{ event.payload.eventData.k8s.cluster.name.0 | default('') }}
-              event_name: {{ event.payload.eventData.event.name | default('') }}
-              event_namespace: {{ event.payload.eventData.k8s.namespace.name.0 | default('') }}
-              event_description {{ event.payload.eventData.event.description | default('') }}
+              ---------------------------------------------------
+              Event ID:    {{ event.payload.eventData['display_id'] }}
+              Cluster:     {{ event.payload.eventData['k8s.cluster.name'][0] }}
+              Namespace:   {{ event.payload.eventData['k8s.namespace.name'][0] }}
+              Event Name:  {{ event.payload.eventData['event.name'] }}
+              Description: {{ event.payload.eventData['event.description'] }}
+              ---------------------------------------------------
 #        - run_job_template:
 #            name: "Handle Alertmanager alerts from EDA"
 ##        - run_workflow_template:
