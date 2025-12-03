@@ -1,0 +1,37 @@
+# rulebooks/dynatrace-problems-eventstream.yml
+- name: print alerts coming from Event Stream
+  hosts: localhost
+
+  # Placeholder so the Event Stream can be mapped to a source
+  sources:
+    - ansible.eda.webhook:
+        host: 0.0.0.0
+        port: 5000
+
+  rules:
+    - name: print each alert under payload.alerts
+      condition: event.payload is defined and event.payload.eventData is defined
+      actions:
+#        - debug:
+#            msg: "RAW EVENT: {{ event.payload.eventData }}"
+        - debug:
+            msg: |
+              event_id: {{ event.payload.eventData.display_id | default('') }}
+              event_cluster: {{ event.payload.eventData.k8s.cluster.name | default('') }}
+              event_name: {{ event.payload.eventData.event.name | default('') }}
+              event_namespace: {{ event.payload.eventData.k8s.namespace.name | default('') }}
+              event_description {{ event.payload.eventData.event.description | default('') }}
+#        - run_job_template:
+#            name: "Handle Alertmanager alerts from EDA"
+##        - run_workflow_template:
+##            name: "EDA Lightspeed"
+##            organization: "Default"
+##            job_args:
+              # These appear to AAP as extra vars (see notes below)
+##              extra_vars:
+#                alerts: "{{ event.payload.eventData }}"
+#                payload: "{{ event.payload }}" # optional full payload
+##                severity: "{{ event.payload.eventData.0.labels.severity | default('') }}"
+##                namespace: "{{ event.payload.eventData.0.labels.namespace | default('') }}"
+##                summary: "{{ event.payload.eventData.0.annotations.summary | default('') }}"
+##                description: "{{ event.payload.eventData.0.annotations.description | default('') }}"
