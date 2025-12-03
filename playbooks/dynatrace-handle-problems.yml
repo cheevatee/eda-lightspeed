@@ -1,0 +1,36 @@
+---
+- name: Print Alerts and Payload from EDA
+  hosts: localhost
+  gather_facts: false
+  connection: local
+  vars:
+    repo_name: "eda-lightspeed"
+    
+  tasks:
+    - name: Print the 'event_id' variable
+      ansible.builtin.debug:
+        msg: "Received 'event_id' data: {{ event_id }}"
+      when: event_id is defined
+
+    - name: Print the 'event_name' variable
+      ansible.builtin.debug:
+        msg: "Received 'event_name' data: {{ event_name }}"
+      when: event_name is defined
+
+    - name: Print the 'event_cluster' variable
+      ansible.builtin.debug:
+        msg: "Received 'event_cluster' data: {{ event_cluster }}"
+      when: event_cluster is defined
+
+    - name: Print the 'event_namespace' variable
+      ansible.builtin.debug:
+        msg: "Received 'event_namespace' data: {{ event_namespace }}"
+      when: event_namespace is defined
+
+    - name: Print the 'event_description' variable
+      ansible.builtin.debug:
+        msg: "Received 'event_description' data: {{ event_description }}"
+      when: event_description is defined
+
+    - name: List entries in cloned repo
+      ansible.builtin.command: "ls -lR /runner/project"
