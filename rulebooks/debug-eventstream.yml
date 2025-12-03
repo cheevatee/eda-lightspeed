@@ -9,7 +9,7 @@
         port: 5000
   rules:
     - name: Catch and print everything
-      condition: true
+      condition: event.payload is defined and event.payload.alerts is defined
       actions:
         - print_event:
             pretty: true
