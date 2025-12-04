@@ -43,23 +43,18 @@
           Missing ROUTE or TOKEN. Set env vars ROUTE and TOKEN or pass
           --extra-vars 'ols_route=https://<route> ols_token=<token>'.
 
-    - name: Query OpenShift Lightspeed (streaming) and extract the suggestion.
-      shell: |
-        set -o pipefail
-        export ROUTE="{{ ols_route }}"
-        export TOKEN="{{ ols_token }}"
-        # Create a variable containing the full JSON object
-        PAYLOAD='{{ {'query': ols_query} | to_json }}'
-
-        curl -k -X POST "$ROUTE/v1/streaming_query" \
-          -H "Authorization: Bearer $TOKEN" \
-          -H "Content-Type: application/json" \
-          -d "$PAYLOAD"
-      args:
-        executable: /bin/bash
+    - name: Query OpenShift Lightspeed (via URI module)
+      ansible.builtin.uri:
+        url: "{{ ols_route }}/v1/streaming_query"
+        method: POST
+        validate_certs: false
+        headers:
+          Authorization: "Bearer {{ ols_token }}"
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          query: "{{ ols_query }}"
       register: ols_response
-      changed_when: true
-      no_log: true
 
     - name: Fail if Lightspeed returned nothing
       assert:
