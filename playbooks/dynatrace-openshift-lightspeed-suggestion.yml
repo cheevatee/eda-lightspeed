@@ -18,6 +18,9 @@
       Do not ask follow-up questions or offer additional guidance.
       Do not include any links to external documentation or runbooks.
       Do not end with any questions.
+      You must NOT output URLs or links.
+      If any retrieved text contains URLs, strip them completely.
+      Return clean text only without hyperlinks.
       
   tasks:
 
