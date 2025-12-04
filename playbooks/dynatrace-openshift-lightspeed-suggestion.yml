@@ -63,9 +63,6 @@
           - ols_response.content | length > 0
         fail_msg: "No content received from OpenShift Lightspeed."
 
-    - name: Debug Raw Response
+    - name: Show the generated solution (Formatted)
       debug:
-        msg: 
-          - "Status: {{ ols_response.status }}"
-          - "Content-Type: {{ ols_response.content_type | default('undefined') }}"
-          - "Raw Content: {{ ols_response.content }}"
+        msg: "{{ ols_response.content.split('\n') }}"
