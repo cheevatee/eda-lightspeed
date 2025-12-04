@@ -10,7 +10,7 @@
     ols_token: "{{ lookup('env','OLS_TOKEN') | default('', true) }}"
     ols_query: >-
       Find a solution to solve the following issue from alert,
-#      event_id: {{ event_id | default('') }},
+      event_id: {{ event_id | default('') }},
       event_name: {{ event_name | default('') }},
       event_cluster: {{ event_cluster | default('') }},
       event_namespace: {{ event_namespace | default('') }}
@@ -23,7 +23,7 @@
       ansible.builtin.debug:
         msg: "Received '{{ item }}' data: {{ vars[item] }}"
       loop:
-#        - event_id
+        - event_id
         - event_name
         - event_cluster
         - event_namespace
