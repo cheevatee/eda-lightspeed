@@ -24,11 +24,11 @@
               Description: {{ event.payload.eventData['event.description'] }}
               ---------------------------------------------------
         - run_job_template:
-            name: "Handle Dynatrace problems from EDA"
+#            name: "Handle Dynatrace problems from EDA"
+#            organization: "Default"
+        - run_workflow_template:
+            name: "LightSpeed Auto Remediation"
             organization: "Default"
-##        - run_workflow_template:
-##            name: "EDA Lightspeed"
-##            organization: "Default"
             job_args:
               # These appear to AAP as extra vars (see notes below)
               extra_vars:
