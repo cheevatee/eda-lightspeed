@@ -48,6 +48,7 @@
         url: "{{ ols_route }}/v1/streaming_query"
         method: POST
         validate_certs: false
+        return_content: true
         headers:
           Authorization: "Bearer {{ ols_token }}"
           Content-Type: "application/json"
@@ -59,13 +60,12 @@
     - name: Fail if Lightspeed returned nothing
       assert:
         that:
-          # Check if we got a successful HTTP 200 OK
-          - ols_response.status == 200
-          # Check if we received JSON content
-          - ols_response.json is defined
-        fail_msg: "No valid JSON content received from OpenShift Lightspeed."
+          - ols_response.content | length > 0
+        fail_msg: "No content received from OpenShift Lightspeed."
 
-    - name: Show the generated playbook content
+    - name: Debug Raw Response
       debug:
-        # Access the parsed JSON directly
-        msg: "{{ ols_response.json }}"
+        msg: 
+          - "Status: {{ ols_response.status }}"
+          - "Content-Type: {{ ols_response.content_type | default('undefined') }}"
+          - "Raw Content: {{ ols_response.content }}"
