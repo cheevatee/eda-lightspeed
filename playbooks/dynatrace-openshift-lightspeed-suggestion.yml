@@ -1,0 +1,69 @@
+
+---
+- name: Ask OpenShift Lightspeed for suggestion to fix the alert.
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    # Set via env or override with --extra-vars
+    ols_route: "{{ lookup('env','OLS_ROUTE') | default('', true) }}"
+    ols_token: "{{ lookup('env','OLS_TOKEN') | default('', true) }}"
+    ols_query: >-
+      Find a solution to solve the following issue from alert,
+#      event_id: {{ event_id | default('') }},
+      event_name: {{ event_name | default('') }},
+      event_cluster: {{ event_cluster | default('') }},
+      event_namespace: {{ event_namespace | default('') }}
+      event_description: {{ event_description | default('') }}
+      Do not ask follow-up questions or offer additional guidance. Do not end with any questions.
+
+  tasks:
+
+    - name: Print selected variables if defined
+      ansible.builtin.debug:
+        msg: "Received '{{ item }}' data: {{ vars[item] }}"
+      loop:
+#        - event_id
+        - event_name
+        - event_cluster
+        - event_namespace
+        - event_description
+      when: vars[item] is defined
+
+    - name: Show OLS query
+      ansible.builtin.debug:
+        msg: "{{ ols_query }}"
+
+    - name: Ensure ROUTE and TOKEN are provided
+      assert:
+        that:
+          - ols_route | length > 0
+          - ols_token | length > 0
+        fail_msg: >-
+          Missing ROUTE or TOKEN. Set env vars ROUTE and TOKEN or pass
+          --extra-vars 'ols_route=https://<route> ols_token=<token>'.
+
+    - name: Query OpenShift Lightspeed (streaming) and extract the suggestion.
+      shell: |
+        set -o pipefail
+        export ROUTE="{{ ols_route }}"
+        export TOKEN="{{ ols_token }}"
+        curl -k -X POST "$ROUTE/v1/streaming_query" \
+          -H "Authorization: Bearer $TOKEN" \
+          -H "Content-Type: application/json" \
+          -d "{\"query\": \"{{ ols_query | replace('\"','\\\"') | replace('\n',' ') }}\"}"
+      args:
+        executable: /bin/bash
+      register: ols_response
+      changed_when: true
+      no_log: true  # hides the token in logs
+
+    - name: Fail if Lightspeed returned nothing
+      assert:
+        that:
+          - ols_response.stdout | length > 0
+        fail_msg: "No YAML content received from OpenShift Lightspeed."
+
+    - name: Show the generated playbook content
+      debug:
+        msg: "{{ ols_response.stdout }}"
