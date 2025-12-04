@@ -48,15 +48,18 @@
         set -o pipefail
         export ROUTE="{{ ols_route }}"
         export TOKEN="{{ ols_token }}"
+        # Create a variable containing the full JSON object
+        PAYLOAD='{{ {'query': ols_query} | to_json }}'
+
         curl -k -X POST "$ROUTE/v1/streaming_query" \
           -H "Authorization: Bearer $TOKEN" \
           -H "Content-Type: application/json" \
-          -d "{\"query\": \"{{ ols_query | replace('\"','\\\"') | replace('\n',' ') }}\"}"
+          -d "$PAYLOAD"
       args:
         executable: /bin/bash
       register: ols_response
       changed_when: true
-      no_log: true  # hides the token in logs
+      no_log: true
 
     - name: Fail if Lightspeed returned nothing
       assert:
