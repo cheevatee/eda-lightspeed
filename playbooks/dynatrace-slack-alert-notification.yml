@@ -1,0 +1,28 @@
+---
+- name: Send alert to Slack via webhook
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    slack_webhook_url: "{{ lookup('env','SLACK_WEBHOOK_URL') | default(webhook_url | default(''), true) }}"
+    slack_text: |-
+      :alertturning: *[OpenShift Alert !!!]* :alertturning:
+      *Event ID:* {{ event_id | default('') }}
+      *Event Name:* {{ event_name | default('') }}
+      *Cluster Name:* {{ event_cluster | default('') }}
+      *Namespace:* {{ event_namespace | default('') }}
+      *Description:* {{ event_description | default('') }}
+
+  tasks:
+    - name: Fail if webhook is missing
+      ansible.builtin.fail:
+        msg: "Slack webhook URL not set"
+      when: not slack_webhook_url
+
+    - name: Post message to Slack
+      ansible.builtin.uri:
+        url: "{{ slack_webhook_url }}"
+        method: POST
+        body_format: json
+        body:
+          text: "{{ slack_text }}"
