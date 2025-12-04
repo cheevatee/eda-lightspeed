@@ -71,3 +71,11 @@
     - name: Show the generated solution (Formatted)
       debug:
         msg: "{{ ols_response.content.split('\n') }}"
+
+    - name: Clean the response text
+      set_fact:
+        clean_solution: "{{ ols_response.content.split('---')[0] | trim }}"
+
+    - name: Show Clean Solution
+      debug:
+        msg: "{{ clean_solution.split('\n') }}"
