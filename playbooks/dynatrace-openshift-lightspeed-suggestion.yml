@@ -9,7 +9,7 @@
     ols_route: "{{ lookup('env','OLS_ROUTE') | default('', true) }}"
     ols_token: "{{ lookup('env','OLS_TOKEN') | default('', true) }}"
     ols_query: >-
-      Find a solution to solve the following issue from alert,
+      Analyze the issue from alert and give a suggestion,
       event_id: {{ event_id | default('') }},
       event_name: {{ event_name | default('') }},
       event_cluster: {{ event_cluster | default('') }},
