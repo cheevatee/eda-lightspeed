@@ -59,9 +59,13 @@
     - name: Fail if Lightspeed returned nothing
       assert:
         that:
-          - ols_response.stdout | length > 0
-        fail_msg: "No YAML content received from OpenShift Lightspeed."
+          # Check if we got a successful HTTP 200 OK
+          - ols_response.status == 200
+          # Check if we received JSON content
+          - ols_response.json is defined
+        fail_msg: "No valid JSON content received from OpenShift Lightspeed."
 
     - name: Show the generated playbook content
       debug:
-        msg: "{{ ols_response.stdout }}"
+        # Access the parsed JSON directly
+        msg: "{{ ols_response.json }}"
