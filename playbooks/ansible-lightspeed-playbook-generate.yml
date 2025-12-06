@@ -75,3 +75,22 @@
     - name: Show the generated playbook content
       debug:
         msg: "{{ als_response.stdout }}"
+
+    - name: Sync Git repository to /tmp
+      ansible.builtin.git:
+        repo: "https://github.com/cheevatee/eda-lightspeed.git"
+        dest: "/tmp/eda-lightspeed"
+        version: main
+        force: yes
+
+    - name: List all files recursively in the repo directory
+      ansible.builtin.find:
+        paths: "/tmp/eda-lightspeed"
+        file_type: file
+        recurse: yes
+      register: repo_files
+
+    - name: Print file paths only
+      ansible.builtin.debug:
+        msg: "{{ item.path }}"
+      loop: "{{ repo_files.files }}"
