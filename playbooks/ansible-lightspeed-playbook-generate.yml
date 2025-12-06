@@ -33,6 +33,18 @@
       ansible.builtin.debug:
         msg: "{{ als_query }}"
 
+    - name: Normalize als_query to a single-line string
+      set_fact:
+        als_query_one_line: "{{ als_query
+            | regex_replace('\n', ' ')
+            | regex_replace('\r', ' ')
+            | regex_replace('\\s+', ' ')
+            | trim }}"
+
+    - name: Show als query one line
+      ansible.builtin.debug:
+        msg: "{{ als_query_one_line }}"
+
     - name: Ensure ROUTE and TOKEN are provided
       assert:
         that:
@@ -47,7 +59,7 @@
         set -o pipefail
         export ROUTE="{{ als_route }}"
         export TOKEN="{{ als_token }}"
-        curl -k -sS -X POST   -H "Authorization: Bearer $TOKEN"   -H "Content-Type: application/json"   -d "{\"query\": \"{{ als_query }}\"}" "$ROUTE/api/v1/ai/chat/" | sed -n 's/.*"response":"\(.*\)","rag_chunks.*/\1/p' | sed 's/\\n/\n/g; s/^```yaml\n//; s/\n```$//'
+        curl -k -sS -X POST   -H "Authorization: Bearer $TOKEN"   -H "Content-Type: application/json"   -d "{\"query\": \"{{ als_query_one_line }}\"}" "$ROUTE/api/v1/ai/chat/" | sed -n 's/.*"response":"\(.*\)","rag_chunks.*/\1/p' | sed 's/\\n/\n/g; s/^```yaml\n//; s/\n```$//'
       args:
         executable: /bin/bash
       register: als_response
