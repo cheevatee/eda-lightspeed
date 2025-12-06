@@ -110,7 +110,7 @@
       args:
         chdir: /tmp/eda-lightspeed
 
-      - name: Add remediation playbook to Git index
+    - name: Add remediation playbook to Git index
       ansible.builtin.command:
         cmd: "git add remediation-playbook.yml"
         chdir: "/tmp/eda-lightspeed"
