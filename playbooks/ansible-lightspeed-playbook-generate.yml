@@ -48,7 +48,9 @@
         curl -k -X POST "$ROUTE/v1/ai/chat/" \
           -H "Authorization: Bearer $TOKEN" \
           -H "Content-Type: application/json" \
-          -d "{\"query\": \"{{ als_query }}\"}" | jq -r '.response | sub("```yaml\n";"") | sub("\n```$";"")'
+          -d "{\"query\": \"{{ als_query }}\"}" \
+        | sed -n 's/.*"response":"\(.*\)","rag_chunks.*/\1/p' \
+        | sed 's/\\n/\n/g; s/^```yaml\n//; s/\n```$//'
       args:
         executable: /bin/bash
       register: als_response
