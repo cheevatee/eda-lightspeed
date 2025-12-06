@@ -33,12 +33,13 @@
       ansible.builtin.debug:
         msg: "{{ als_query }}"
 
-    - name: Normalize als_query to a single-line string
+    - name: Normalize als_query to a single-line string and remove colon
       set_fact:
         als_query_one_line: "{{ als_query
             | regex_replace('\n', ' ')
             | regex_replace('\r', ' ')
             | regex_replace('\\s+', ' ')
+            | regex_replace(':', '')
             | trim }}"
 
     - name: Show als query one line
