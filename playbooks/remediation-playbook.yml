@@ -4,31 +4,35 @@
   gather_facts: no
   vars:
     kubeconfig: /path/to/kubeconfig
-    pvc_name: test-pvc-01
     namespace: test
-    new_size: 20Gi
+    pvc_name: test-pvc-01
+    new_size: 20Gi  # adjust as needed
 
   tasks:
-    - name: Get current PVC details
-      k8s_facts:
+    - name: Patch PVC to increase size
+      kubernetes.core.k8s:
         kubeconfig: \"{{ kubeconfig }}\"
-        kind: PersistentVolumeClaim
         namespace: \"{{ namespace }}\"
+        kind: PersistentVolumeClaim
         name: \"{{ pvc_name }}\"
-      register: pvc_facts
-
-    - name: Expand PVC to new size
-      k8s:
-        kubeconfig: \"{{ kubeconfig }}\"
-        state: present
         definition:
-          apiVersion: v1
-          kind: PersistentVolumeClaim
-          metadata:
-            name: \"{{ pvc_name }}\"
-            namespace: \"{{ namespace }}\"
           spec:
             resources:
               requests:
                 storage: \"{{ new_size }}\"
-      when: pvc_facts.resources[0].spec.resources.requests.storage != new_size
+      register: patch_result
+
+    - name: Wait for PVC to be resized
+      kubernetes.core.k8s_info:
+        kubeconfig: \"{{ kubeconfig }}\"
+        namespace: \"{{ namespace }}\"
+        kind: PersistentVolumeClaim
+        name: \"{{ pvc_name }}\"
+      register: pvc_info
+      until: pvc_info.resources[0].status.capacity.storage == new_size
+      retries: 10
+      delay: 30
+
+    - name: Verify PVC size
+      debug:
+        msg: \"PVC {{ pvc_name }} resized to {{ new_size }}\"
