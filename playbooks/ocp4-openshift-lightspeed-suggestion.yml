@@ -60,8 +60,8 @@
       assert:
         that:
           - ols_response.stdout | length > 0
-        fail_msg: "No YAML content received from OpenShift Lightspeed."
+        fail_msg: "No suggestion content received from OpenShift Lightspeed."
 
-    - name: Show the generated playbook content
+    - name: Show the generated suggestion content
       debug:
         msg: "{{ ols_response.stdout }}"
