@@ -104,18 +104,14 @@
         mode: '0644'
 
     - name: Configure Git username for this repo
-      ansible.builtin.git_config:
-        name: user.name
-        value: "{{ lookup('env', 'GITHUB_USERNAME') }}"
-        scope: local
-        repo: /tmp/eda-lightspeed
+      ansible.builtin.command:
+        cmd: git config user.name "{{ lookup('env', 'GITHUB_USERNAME') }}"
+        chdir: /tmp/eda-lightspeed
 
     - name: Configure Git email for this repo
-      ansible.builtin.git_config:
-        name: user.email
-        value: "{{ lookup('env', 'GITHUB_EMAIL') }}"
-        scope: local
-        repo: /tmp/eda-lightspeed
+      ansible.builtin.command:
+        cmd: git config user.email "{{ lookup('env', 'GITHUB_EMAIL') }}"
+        chdir: /tmp/eda-lightspeed
 
     - name: Configure Git remote with PAT
       ansible.builtin.command: >
