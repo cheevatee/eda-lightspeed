@@ -1,1 +1,34 @@
+---
+- name: Fix Kubernetes PVC low disk space
+  hosts: localhost
+  gather_facts: no
+  vars:
+    kubeconfig: /path/to/kubeconfig
+    pvc_name: test-pvc-01
+    namespace: test
+    new_size: 20Gi
 
+  tasks:
+    - name: Get current PVC details
+      k8s_facts:
+        kubeconfig: \"{{ kubeconfig }}\"
+        kind: PersistentVolumeClaim
+        namespace: \"{{ namespace }}\"
+        name: \"{{ pvc_name }}\"
+      register: pvc_facts
+
+    - name: Expand PVC to new size
+      k8s:
+        kubeconfig: \"{{ kubeconfig }}\"
+        state: present
+        definition:
+          apiVersion: v1
+          kind: PersistentVolumeClaim
+          metadata:
+            name: \"{{ pvc_name }}\"
+            namespace: \"{{ namespace }}\"
+          spec:
+            resources:
+              requests:
+                storage: \"{{ new_size }}\"
+      when: pvc_facts.resources[0].spec.resources.requests.storage != new_size
