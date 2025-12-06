@@ -15,7 +15,7 @@
       event_namespace: {{ event_namespace | default('') }}
       event_description: {{ event_description | default('') }}
       Do not ask follow-up questions or offer additional guidance. Do not end with any questions.
-      Use core.k8s module without kubeconfig
+      If you want to update the OpenShift configuration using the core.k8s module without a kubeconfig file
 
   tasks:
 
