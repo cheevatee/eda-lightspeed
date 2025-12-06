@@ -51,3 +51,13 @@
       register: als_response
       changed_when: true
 #      no_log: true  # hides the token in logs
+
+    - name: Fail if Lightspeed returned nothing
+      assert:
+        that:
+          - als_response.stdout | length > 0
+        fail_msg: "No YAML content received from Ansible Lightspeed."
+
+    - name: Show the generated playbook content
+      debug:
+        msg: "{{ als_response.stdout }}"
