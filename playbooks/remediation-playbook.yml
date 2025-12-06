@@ -1,38 +1,18 @@
 ---
-- name: Fix Kubernetes PVC low disk space
+- name: Fix low disk space on PVC
   hosts: localhost
   gather_facts: no
-  vars:
-    kubeconfig: /path/to/kubeconfig
-    namespace: test
-    pvc_name: test-pvc-01
-    new_size: 20Gi  # adjust as needed
-
   tasks:
-    - name: Patch PVC to increase size
-      kubernetes.core.k8s:
-        kubeconfig: \"{{ kubeconfig }}\"
-        namespace: \"{{ namespace }}\"
-        kind: PersistentVolumeClaim
-        name: \"{{ pvc_name }}\"
+    - name: Increase PVC size to 20Gi
+      core.k8s:
+        state: present
         definition:
+          apiVersion: v1
+          kind: PersistentVolumeClaim
+          metadata:
+            name: test-pvc-01
+            namespace: test
           spec:
             resources:
               requests:
-                storage: \"{{ new_size }}\"
-      register: patch_result
-
-    - name: Wait for PVC to be resized
-      kubernetes.core.k8s_info:
-        kubeconfig: \"{{ kubeconfig }}\"
-        namespace: \"{{ namespace }}\"
-        kind: PersistentVolumeClaim
-        name: \"{{ pvc_name }}\"
-      register: pvc_info
-      until: pvc_info.resources[0].status.capacity.storage == new_size
-      retries: 10
-      delay: 30
-
-    - name: Verify PVC size
-      debug:
-        msg: \"PVC {{ pvc_name }} resized to {{ new_size }}\"
+                storage: 20Gi
