@@ -1,13 +1,13 @@
 ---
-- name: Expand PVC and verify
+- name: Fix and verify low disk space on PVC
   hosts: localhost
   gather_facts: no
   vars:
     pvc_name: test-pvc-01
-    pvc_namespace: test
-    new_size: 20Gi
+    namespace: test
+    new_size: 20Gi  # increase PVC size to 20Gi
   tasks:
-    - name: Expand PVC
+    - name: Patch PVC to increase size
       core.k8s:
         state: present
         definition:
@@ -15,21 +15,31 @@
           kind: PersistentVolumeClaim
           metadata:
             name: \"{{ pvc_name }}\"
-            namespace: \"{{ pvc_namespace }}\"
+            namespace: \"{{ namespace }}\"
           spec:
             resources:
               requests:
                 storage: \"{{ new_size }}\"
-      register: pvc_expand
+      register: patch_result
 
-    - name: Verify PVC size
-      core.k8s:
-        state: present
+    - name: Wait for PVC to be bound
+      core.k8s_info:
         kind: PersistentVolumeClaim
+        namespace: \"{{ namespace }}\"
         name: \"{{ pvc_name }}\"
-        namespace: \"{{ pvc_namespace }}\"
       register: pvc_info
+      until: pvc_info.resources[0].status.phase == \"Bound\"
+      retries: 10
+      delay: 10
 
-    - name: Show PVC status
+    - name: Verify available disk space
+      shell: |
+        oc get pvc {{ pvc_name }} -n {{ namespace }} -o jsonpath='{.status.capacity.storage}'
+      register: pvc_capacity
+      changed_when: false
+
+    - name: Report PVC status
       debug:
-        msg: \"PVC {{ pvc_name }} size: {{ pvc_info.resources.requests.storage }}\"
+        msg: |
+          PVC {{ pvc_name }} in namespace {{ namespace }} has been patched to {{ new_size }}.
+          Current capacity: {{ pvc_capacity.stdout }}.
