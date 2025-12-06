@@ -103,6 +103,13 @@
         content: "{{ als_response.stdout }}"
         mode: '0644'
 
+    - name: Configure Git remote with PAT
+      ansible.builtin.command: >
+        git remote set-url origin
+        https://{{ lookup('env','GITHUB_USERNAME') }}:{{ lookup('env','GITHUB_TOKEN') }}@github.com/cheevatee/eda-lightspeed.git
+      args:
+        chdir: /tmp/eda-lightspeed
+
       - name: Add remediation playbook to Git index
       ansible.builtin.command:
         cmd: "git add remediation-playbook.yml"
