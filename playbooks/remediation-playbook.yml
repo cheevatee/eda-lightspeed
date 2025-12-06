@@ -1,9 +1,9 @@
 ---
-- name: Fix low disk space on PVC
+- name: Expand PVC to resolve low disk space
   hosts: localhost
   gather_facts: no
   tasks:
-    - name: Increase PVC size to 20Gi
+    - name: Increase storage of test-pvc-01
       core.k8s:
         state: present
         definition:
