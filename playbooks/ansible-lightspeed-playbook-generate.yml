@@ -45,12 +45,7 @@
         set -o pipefail
         export ROUTE="{{ als_route }}"
         export TOKEN="{{ als_token }}"
-        curl -k -X POST "$ROUTE/v1/ai/chat/" \
-          -H "Authorization: Bearer $TOKEN" \
-          -H "Content-Type: application/json" \
-          -d "{\"query\": \"{{ als_query }}\"}" \
-        | sed -n 's/.*"response":"\(.*\)","rag_chunks.*/\1/p' \
-        | sed 's/\\n/\n/g; s/^```yaml\n//; s/\n```$//'
+        curl -k -sS -X POST   -H "Authorization: Bearer $TOKEN"   -H "Content-Type: application/json"   -d "{\"query\": \"{{ als_query }}\"}" "$ROUTE/v1/ai/chat/" | sed -n 's/.*"response":"\(.*\)","rag_chunks.*/\1/p' | sed 's/\\n/\n/g; s/^```yaml\n//; s/\n```$//'
       args:
         executable: /bin/bash
       register: als_response
