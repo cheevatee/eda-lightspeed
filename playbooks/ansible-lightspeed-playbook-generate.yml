@@ -93,13 +93,13 @@
 
     - name: Clear existing remediation playbook file
       ansible.builtin.copy:
-        dest: /tmp/eda-lightspeed/remediation-playbook.yml
+        dest: /tmp/eda-lightspeed/playbooks/remediation-playbook.yml
         content: ""          # truncate / create empty file
         mode: '0644'
 
     - name: Save Ansible Lightspeed response to remediation playbook
       ansible.builtin.copy:
-        dest: /tmp/eda-lightspeed/remediation-playbook.yml
+        dest: /tmp/eda-lightspeed/playbooks/remediation-playbook.yml
         content: "{{ als_response.stdout }}"
         mode: '0644'
 
