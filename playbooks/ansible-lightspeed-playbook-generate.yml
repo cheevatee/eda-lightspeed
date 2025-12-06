@@ -122,7 +122,7 @@
 
     - name: Add remediation playbook to Git index
       ansible.builtin.command:
-        cmd: "git add remediation-playbook.yml"
+        cmd: "git add playbooks/remediation-playbook.yml"
         chdir: "/tmp/eda-lightspeed"
       register: git_add
       changed_when: "'fatal' not in git_add.stderr"
