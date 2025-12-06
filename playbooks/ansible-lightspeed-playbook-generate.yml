@@ -1,1 +1,56 @@
+---
+- name: Ask Ansible Lightspeed for suggestion to fix the alert.
+  hosts: localhost
+  gather_facts: false
 
+  vars:
+    # Set via env or override with --extra-vars
+    als_route: "{{ lookup('env','ALS_ROUTE') | default('', true) }}"
+    als_token: "{{ lookup('env','ALS_TOKEN') | default('', true) }}"
+    als_query: >-
+      Can you create an ansible playbook to fix without Explanation, Variable
+      severity: {{ severity | default('') }},
+      namespace: {{ namespace | default('') }},
+      summary: {{ summary | default('') }},
+      description: {{ description | default('') }}
+      Do not ask follow-up questions or offer additional guidance. Do not end with any questions.
+
+  tasks:
+
+    - name: Print selected variables if defined
+      ansible.builtin.debug:
+        msg: "Received '{{ item }}' data: {{ vars[item] }}"
+      loop:
+        - severity
+        - namespace
+        - summary
+        - description
+      when: vars[item] is defined
+
+    - name: Show als query
+      ansible.builtin.debug:
+        msg: "{{ als_query }}"
+
+    - name: Ensure ROUTE and TOKEN are provided
+      assert:
+        that:
+          - als_route | length > 0
+          - als_token | length > 0
+        fail_msg: >-
+          Missing ROUTE or TOKEN. Set env vars ROUTE and TOKEN or pass
+          --extra-vars 'als_route=https://<route> als_token=<token>'.
+
+    - name: Query Ansible Lightspeed (streaming) and create an ansible playbook.
+      shell: |
+        set -o pipefail
+        export ROUTE="{{ als_route }}"
+        export TOKEN="{{ als_token }}"
+        curl -k -X POST "$ROUTE/v1/ai/chat/" \
+          -H "Authorization: Bearer $TOKEN" \
+          -H "Content-Type: application/json" \
+          -d "{\"query\": \"{{ als_query }}\"}" | jq -r '.response | sub("```yaml\n";"") | sub("\n```$";"")'
+      args:
+        executable: /bin/bash
+      register: als_response
+      changed_when: true
+      no_log: true  # hides the token in logs
