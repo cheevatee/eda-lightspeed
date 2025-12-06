@@ -1,18 +1,35 @@
 ---
-- name: Expand PVC to resolve low disk space
+- name: Expand PVC and verify
   hosts: localhost
   gather_facts: no
+  vars:
+    pvc_name: test-pvc-01
+    pvc_namespace: test
+    new_size: 20Gi
   tasks:
-    - name: Increase storage of test-pvc-01
+    - name: Expand PVC
       core.k8s:
         state: present
         definition:
           apiVersion: v1
           kind: PersistentVolumeClaim
           metadata:
-            name: test-pvc-01
-            namespace: test
+            name: \"{{ pvc_name }}\"
+            namespace: \"{{ pvc_namespace }}\"
           spec:
             resources:
               requests:
-                storage: 20Gi
+                storage: \"{{ new_size }}\"
+      register: pvc_expand
+
+    - name: Verify PVC size
+      core.k8s:
+        state: present
+        kind: PersistentVolumeClaim
+        name: \"{{ pvc_name }}\"
+        namespace: \"{{ pvc_namespace }}\"
+      register: pvc_info
+
+    - name: Show PVC status
+      debug:
+        msg: \"PVC {{ pvc_name }} size: {{ pvc_info.resources.requests.storage }}\"
