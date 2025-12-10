@@ -8,17 +8,23 @@
     als_route: "{{ lookup('env','ALS_ROUTE') | default('', true) }}"
     als_token: "{{ lookup('env','ALS_TOKEN') | default('', true) }}"
     als_query: >-
-      Can you create an ansible playbook to fix and verify without Explanation, Variable.
-      If the event requires gathering additional information or performing specific actions (for example, expanding a PVC or addressing a specific event type), 
-      you must add those tasks directly into the playbook.
-      event_id: {{ event_id | default('') }},
-      event_name: {{ event_name | default('') }},
-      event_cluster: {{ event_cluster | default('') }},
+      You are an expert Ansible automation engineer for OpenShift/Kubernetes. 
+      Create an Ansible playbook to "Fix and Verify" based on the event details provided.
+      **Strict Guidelines:**
+      1. **Dynamic Information Gathering:** If the event implies a resource change (e.g., "expand PVC", "resize limits"), you MUST add a task to fetch the current state first (using `kubernetes.core.k8s_info`) before applying the fix. Use the gathered information to ensure the fix is valid.
+      2. **Collection Usage:** Use the `kubernetes.core` collection for all tasks (e.g., `kubernetes.core.k8s`, `kubernetes.core.k8s_info`). Do NOT use `core.k8s` or `community.okd` unless specified.
+      3. **Authentication:** Assume the environment is already configured for authentication (e.g., ServiceAccount or Environment Variables). Do not reference a kubeconfig file.
+      4. **Verification:** Always include a final task to verify the fix was successful (e.g., check the new status or capacity).
+      5. **Output Format:** Provide ONLY the YAML playbook. Do not include explanations, intro text, or a separate variables block.
+      **Event Details:**
+      event_id: {{ event_id | default('') }}
+      event_name: {{ event_name | default('') }}
+      event_cluster: {{ event_cluster | default('') }}
       event_namespace: {{ event_namespace | default('') }}
       event_description: {{ event_description | default('') }}
-      Do not ask follow-up questions or offer additional guidance. Do not end with any questions.
-      If you want to update the OpenShift configuration using the core.k8s module without a kubeconfig file
-
+      **Task:**
+      Generate the playbook to fix the issue described in the event and verify the resolution.
+      
   tasks:
 
     - name: Print selected variables if defined
