@@ -12,8 +12,10 @@
       *Cluster Name:* {{ event_cluster | default('') }}
       *Namespace:* {{ event_namespace | default('') }}
       *Description:* {{ event_description | default('') }}
+      
       :zap: *[OpenShift Lightspeed]* :zap: 
       *Lightspeed Suggestion:* {{ ols_suggestion | default('No suggestion available.') }}
+      
   tasks:
     - name: Fail if webhook is missing
       ansible.builtin.fail:
