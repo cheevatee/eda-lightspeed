@@ -1,1 +1,47 @@
-{"conversation_id": "1944b5cc-8d96-4cfb-b248-53f39211e5b3", "response": "```yaml\n---\n- name: Fix and verify low disk space on PVC\n  hosts: localhost\n  gather_facts: no\n  tasks:\n    - name: Gather current PVC information\n      kubernetes.core.k8s_info:\n        api_version: v1\n        kind: PersistentVolumeClaim\n        name: test-pvc-01\n        namespace: test\n      register: pvc_info\n\n    - name: Calculate new PVC size\n      set_fact:\n        current_size_raw: \"{{ pvc_info.resources[0].spec.resources.requests.storage }}\"\n        current_size_gi: \"{{ current_size_raw | regex_replace('Gi', '') | int }}\"\n        new_size_gi: \"{{ current_size_gi + 1 }}\"\n        new_size: \"{{ new_size_gi }}Gi\"\n\n    - name: Patch PVC with increased size\n      kubernetes.core.k8s:\n        state: patched\n        definition:\n          apiVersion: v1\n          kind: PersistentVolumeClaim\n          metadata:\n            name: test-pvc-01\n            namespace: test\n          spec:\n            resources:\n              requests:\n                storage: \"{{ new_size }}\"\n\n    - name: Verify PVC size has been updated\n      kubernetes.core.k8s_info:\n        api_version: v1\n        kind: PersistentVolumeClaim\n        name: test-pvc-01\n        namespace: test\n      register: pvc_info_verify\n\n    - name: Assert PVC size matches expected new size\n      assert:\n        that:\n          - pvc_info_verify.resources[0].spec.resources.requests.storage == new_size\n        fail_msg: \"PVC size did not update to {{ new_size }}\"\n        success_msg: \"PVC size successfully updated to {{ new_size }}\"\n```", "rag_chunks": [], "tool_calls": null, "referenced_documents": [], "truncated": false, "input_tokens": 738, "output_tokens": 370, "available_quotas": {}}
+---
+- name: Fix and verify low disk space on PVC
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Gather current PVC information
+      kubernetes.core.k8s_info:
+        kind: PersistentVolumeClaim
+        namespace: test
+        name: test-pvc-01
+      register: pvc_info
+
+    - name: Set current PVC size
+      set_fact:
+        current_size: \"{{ pvc_info.resources[0].spec.resources.requests.storage }}\"
+
+    - name: Calculate new PVC size (increase by 10Gi)
+      set_fact:
+        new_size: \"{{ (current_size | regex_replace('([0-9]+)([a-zA-Z]+)', '\\\\1') | int) + 10 }}Gi\"
+
+    - name: Patch PVC with new size
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: PersistentVolumeClaim
+          metadata:
+            name: test-pvc-01
+            namespace: test
+          spec:
+            resources:
+              requests:
+                storage: \"{{ new_size }}\"
+
+    - name: Verify PVC size after patch
+      kubernetes.core.k8s_info:
+        kind: PersistentVolumeClaim
+        namespace: test
+        name: test-pvc-01
+      register: pvc_verify
+
+    - name: Assert PVC size is updated
+      assert:
+        that:
+          - pvc_verify.resources[0].spec.resources.requests.storage == new_size
+        fail_msg: \"PVC size was not updated to {{ new_size }}\"
+        success_msg: \"PVC size successfully updated to {{ new_size }}\"
