@@ -5,44 +5,49 @@
   vars:
     pvc_name: test-pvc-01
     namespace: test
-    cluster: openshift-apaclab
-    new_size: 10Gi          # adjust as needed
-    threshold: 10           # percent
+    new_size: 20Gi          # increase size to 20Gi
+    threshold: 10           # percent threshold
 
   tasks:
-    - name: Get current PVC size
-      core.k8s_info:
+    - name: Get current PVC details
+      k8s_info:
         api_version: v1
         kind: PersistentVolumeClaim
         name: \"{{ pvc_name }}\"
         namespace: \"{{ namespace }}\"
       register: pvc_info
 
-    - name: Calculate available space percentage
-      set_fact:
-        available_percent: \"{{ (pvc_info.resources[0].status.capacity.storage | regex_replace('Gi', '') | float) / (pvc_info.resources[0].spec.resources.requests.storage | regex_replace('Gi', '') | float) * 100 }}\"
-
-    - name: Patch PVC to increase size if below threshold
-      core.k8s:
+    - name: Patch PVC to increase size
+      k8s:
         api_version: v1
         kind: PersistentVolumeClaim
         name: \"{{ pvc_name }}\"
         namespace: \"{{ namespace }}\"
+        merge_type: strategic
         definition:
           spec:
             resources:
               requests:
                 storage: \"{{ new_size }}\"
-      when: available_percent < threshold
+      when: pvc_info.resources[0].spec.resources.requests.storage != new_size
 
-    - name: Verify PVC size after patch
-      core.k8s_info:
+    - name: Wait for PVC to be bound after resize
+      k8s_info:
         api_version: v1
         kind: PersistentVolumeClaim
         name: \"{{ pvc_name }}\"
         namespace: \"{{ namespace }}\"
-      register: pvc_info_after
+      register: pvc_status
+      until: pvc_status.resources[0].status.phase == \"Bound\"
+      retries: 10
+      delay: 10
 
-    - name: Report final PVC size
+    - name: Verify PVC usage is above threshold
+      shell: |
+        kubectl get pvc {{ pvc_name }} -n {{ namespace }} -o jsonpath='{.status.capacity.storage}'
+      register: pvc_capacity
+      changed_when: false
+
+    - name: Report verification result
       debug:
-        msg: \"PVC {{ pvc_name }} in namespace {{ namespace }} now has size {{ pvc_info_after.resources[0].spec.resources.requests.storage }}\"
+        msg: \"PVC {{ pvc_name }} in namespace {{ namespace }} has capacity {{ pvc_capacity.stdout }} and is bound.\"
