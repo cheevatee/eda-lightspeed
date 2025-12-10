@@ -1,47 +1,52 @@
 ---
-- name: Fix and verify low disk space on PVC
+- name: Fix and verify Job failure event in OpenShift
   hosts: localhost
   gather_facts: no
   vars:
-    pvc_name: test-pvc-01
-    namespace: test
-    new_size: 20Gi  # increase size to 20Gi
+    event_id: P-2512127
+    event_name: \"Job failure event\"
+    event_cluster: openshift-apaclab
+    event_namespace: aap
+    event_description: \"# Job failure event The problem **affects 1 entity** overall. Following entities were affected by the problem **Kubernetes workload, activation-job-1-19** Error Job failure event - Events with reason 'BackoffLimitExceeded', 'DeadlineExceeded', or 'PodFailurePolicy' have been detected.\"
+    job_name: activation-job-1-19
+    patch_body:
+      spec:
+        backoffLimit: 0
   tasks:
-    - name: Increase PVC size
+    - name: Patch job to reset backoffLimit
       core.k8s:
-        state: present
+        state: patched
         definition:
-          apiVersion: v1
-          kind: PersistentVolumeClaim
+          apiVersion: batch/v1
+          kind: Job
           metadata:
-            name: \"{{ pvc_name }}\"
-            namespace: \"{{ namespace }}\"
-          spec:
-            resources:
-              requests:
-                storage: \"{{ new_size }}\"
-      register: pvc_patch
+            name: \"{{ job_name }}\"
+            namespace: \"{{ event_namespace }}\"
+          spec: \"{{ patch_body.spec }}\"
+      register: patch_result
 
-    - name: Wait for PVC to be bound
+    - name: Delete failed pods of the job
+      core.k8s:
+        state: absent
+        kind: Pod
+        namespace: \"{{ event_namespace }}\"
+        name: \"{{ item.metadata.name }}\"
+      loop: \"{{ lookup('k8s', 'pods', namespace=event_namespace, label_selector='job-name=' + job_name, _return='items') }}\"
+      when: item.status.phase in ['Failed', 'Unknown']
+
+    - name: Wait for job to complete
       core.k8s_info:
-        kind: PersistentVolumeClaim
-        namespace: \"{{ namespace }}\"
-        name: \"{{ pvc_name }}\"
-      register: pvc_info
-      until: pvc_info.resources[0].status.phase == \"Bound\"
+        kind: Job
+        namespace: \"{{ event_namespace }}\"
+        name: \"{{ job_name }}\"
+      register: job_info
+      until: job_info.resources[0].status.succeeded | default(0) > 0
       retries: 10
-      delay: 10
+      delay: 30
 
-    - name: Verify PVC size
-      core.k8s_info:
-        kind: PersistentVolumeClaim
-        namespace: \"{{ namespace }}\"
-        name: \"{{ pvc_name }}\"
-      register: pvc_verify
-
-    - name: Output verification result
-      debug:
-        msg: >
-          PVC '{{ pvc_name }}' in namespace '{{ namespace }}' is now
-          {{ pvc_verify.resources[0].status.phase }} with size
-          {{ pvc_verify.resources[0].spec.resources.requests.storage }}.
+    - name: Verify job succeeded
+      assert:
+        that:
+          - job_info.resources[0].status.succeeded | default(0) > 0
+        fail_msg: \"Job {{ job_name }} did not succeed after patching.\"
+        success_msg: \"Job {{ job_name }} succeeded.\"
