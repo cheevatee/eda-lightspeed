@@ -88,13 +88,13 @@
 
     - name: Sync Git repository to /tmp
       ansible.builtin.git:
-        repo: "https://github.com/{{ lookup('env','GITHUB_USERNAME') }}/eda-lightspeed.git"
-        dest: "/tmp/eda-lightspeed"
+        repo: "https://github.com/{{ lookup('env','GITHUB_USERNAME') }}/{{ lookup('env','GITHUB_REPOSITORY') }}.git"
+        dest: "/tmp/{{ lookup('env','GITHUB_REPOSITORY') }}"
         version: main
         force: yes
 
     - name: List files in repo
-      ansible.builtin.command: "ls -lR /tmp/eda-lightspeed"
+      ansible.builtin.command: "ls -lR /tmp/{{ lookup('env','GITHUB_REPOSITORY') }}"
       register: ls_output
 
     - name: Print ls -lR output
@@ -103,51 +103,51 @@
 
     - name: Clear existing remediation playbook file
       ansible.builtin.copy:
-        dest: /tmp/eda-lightspeed/playbooks/remediation-playbook.yml
+        dest: /tmp/{{ lookup('env','GITHUB_REPOSITORY') }}/playbooks/remediation-playbook.yml
         content: ""          # truncate / create empty file
         mode: '0644'
 
     - name: Save Ansible Lightspeed response to remediation playbook
       ansible.builtin.copy:
-        dest: /tmp/eda-lightspeed/playbooks/remediation-playbook.yml
+        dest: /tmp/{{ lookup('env','GITHUB_REPOSITORY') }}/playbooks/remediation-playbook.yml
         content: "{{ als_response.stdout }}"
         mode: '0644'
 
     - name: Configure Git username for this repo
       ansible.builtin.command:
         cmd: git config user.name "{{ lookup('env', 'GITHUB_USERNAME') }}"
-        chdir: /tmp/eda-lightspeed
+        chdir: /tmp/{{ lookup('env','GITHUB_REPOSITORY') }}
 
     - name: Configure Git email for this repo
       ansible.builtin.command:
         cmd: git config user.email "{{ lookup('env', 'GITHUB_EMAIL') }}"
-        chdir: /tmp/eda-lightspeed
+        chdir: /tmp/{{ lookup('env','GITHUB_REPOSITORY') }}
 
     - name: Configure Git remote with PAT
       ansible.builtin.command: >
         git remote set-url origin
-        https://{{ lookup('env','GITHUB_USERNAME') }}:{{ lookup('env','GITHUB_TOKEN') }}@github.com/{{ lookup('env','GITHUB_USERNAME') }}/eda-lightspeed.git
+        https://{{ lookup('env','GITHUB_USERNAME') }}:{{ lookup('env','GITHUB_TOKEN') }}@github.com/{{ lookup('env','GITHUB_USERNAME') }}/{{ lookup('env','GITHUB_REPOSITORY') }}.git
       args:
-        chdir: /tmp/eda-lightspeed
+        chdir: /tmp/{{ lookup('env','GITHUB_REPOSITORY') }}
 
     - name: Add remediation playbook to Git index
       ansible.builtin.command:
         cmd: "git add playbooks/remediation-playbook.yml"
-        chdir: "/tmp/eda-lightspeed"
+        chdir: "/tmp/{{ lookup('env','GITHUB_REPOSITORY') }}"
       register: git_add
       changed_when: "'fatal' not in git_add.stderr"
 
     - name: Commit changes
       ansible.builtin.command:
         cmd: "git commit -m 'Update remediation playbook from EDA Lightspeed'"
-        chdir: "/tmp/eda-lightspeed"
+        chdir: "/tmp/{{ lookup('env','GITHUB_REPOSITORY') }}"
       register: git_commit
       changed_when: "'nothing to commit' not in git_commit.stdout"
 
     - name: Push changes to remote repository
       ansible.builtin.command:
         cmd: "git push"
-        chdir: "/tmp/eda-lightspeed"
+        chdir: "/tmp/{{ lookup('env','GITHUB_REPOSITORY') }}"
       register: git_push
       changed_when: true
 
