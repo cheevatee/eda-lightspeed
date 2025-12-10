@@ -5,10 +5,24 @@
   vars:
     pvc_name: test-pvc-01
     namespace: test
-    new_size: 20Gi
+    cluster: openshift-apaclab
+    new_size: 20Gi          # desired size after expansion
+    threshold: 10           # percent threshold
 
   tasks:
-    - name: Patch PVC to increase storage
+    - name: Get current PVC size
+      core.k8s:
+        api_version: v1
+        kind: PersistentVolumeClaim
+        name: \"{{ pvc_name }}\"
+        namespace: \"{{ namespace }}\"
+      register: pvc_info
+
+    - name: Calculate available space percentage
+      set_fact:
+        available_percent: \"{{ (pvc_info.resources.status.capacity.storage | regex_replace('Gi', '') | int) / (pvc_info.resources.status.capacity.storage | regex_replace('Gi', '') | int + 1) * 100 | round(2) }}\"
+
+    - name: Expand PVC if below threshold
       core.k8s:
         api_version: v1
         kind: PersistentVolumeClaim
@@ -19,15 +33,16 @@
             resources:
               requests:
                 storage: \"{{ new_size }}\"
+      when: available_percent < threshold
 
-    - name: Retrieve PVC facts
-      core.k8s_facts:
+    - name: Verify PVC size after expansion
+      core.k8s:
         api_version: v1
         kind: PersistentVolumeClaim
         name: \"{{ pvc_name }}\"
         namespace: \"{{ namespace }}\"
-      register: pvc_facts
+      register: pvc_after
 
-    - name: Verify PVC storage size
+    - name: Report final PVC size
       debug:
-        msg: \"PVC '{{ pvc_name }}' in namespace '{{ namespace }}' now has storage: {{ pvc_facts.resources[0].spec.resources.requests.storage }}\"
+        msg: \"PVC {{ pvc_name }} in namespace {{ namespace }} now has size {{ pvc_after.resources.spec.resources.requests.storage }}\"
