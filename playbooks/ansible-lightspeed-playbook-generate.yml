@@ -8,7 +8,9 @@
     als_route: "{{ lookup('env','ALS_ROUTE') | default('', true) }}"
     als_token: "{{ lookup('env','ALS_TOKEN') | default('', true) }}"
     als_query: >-
-      Can you create an ansible playbook to fix and verify without Explanation, Variable
+      Can you create an ansible playbook to fix and verify without Explanation, Variable.
+      If the event requires gathering additional information or performing specific actions (for example, expanding a PVC or addressing a specific event type), 
+      you must add those tasks directly into the playbook.
       event_id: {{ event_id | default('') }},
       event_name: {{ event_name | default('') }},
       event_cluster: {{ event_cluster | default('') }},
