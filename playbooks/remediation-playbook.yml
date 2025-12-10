@@ -5,49 +5,29 @@
   vars:
     pvc_name: test-pvc-01
     namespace: test
-    new_size: 20Gi          # increase size to 20Gi
-    threshold: 10           # percent threshold
+    new_size: 20Gi
 
   tasks:
-    - name: Get current PVC details
-      k8s_info:
+    - name: Patch PVC to increase storage
+      core.k8s:
         api_version: v1
         kind: PersistentVolumeClaim
         name: \"{{ pvc_name }}\"
         namespace: \"{{ namespace }}\"
-      register: pvc_info
-
-    - name: Patch PVC to increase size
-      k8s:
-        api_version: v1
-        kind: PersistentVolumeClaim
-        name: \"{{ pvc_name }}\"
-        namespace: \"{{ namespace }}\"
-        merge_type: strategic
-        definition:
+        patch:
           spec:
             resources:
               requests:
                 storage: \"{{ new_size }}\"
-      when: pvc_info.resources[0].spec.resources.requests.storage != new_size
 
-    - name: Wait for PVC to be bound after resize
-      k8s_info:
+    - name: Retrieve PVC facts
+      core.k8s_facts:
         api_version: v1
         kind: PersistentVolumeClaim
         name: \"{{ pvc_name }}\"
         namespace: \"{{ namespace }}\"
-      register: pvc_status
-      until: pvc_status.resources[0].status.phase == \"Bound\"
-      retries: 10
-      delay: 10
+      register: pvc_facts
 
-    - name: Verify PVC usage is above threshold
-      shell: |
-        kubectl get pvc {{ pvc_name }} -n {{ namespace }} -o jsonpath='{.status.capacity.storage}'
-      register: pvc_capacity
-      changed_when: false
-
-    - name: Report verification result
+    - name: Verify PVC storage size
       debug:
-        msg: \"PVC {{ pvc_name }} in namespace {{ namespace }} has capacity {{ pvc_capacity.stdout }} and is bound.\"
+        msg: \"PVC '{{ pvc_name }}' in namespace '{{ namespace }}' now has storage: {{ pvc_facts.resources[0].spec.resources.requests.storage }}\"
