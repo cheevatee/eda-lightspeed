@@ -5,41 +5,44 @@
   vars:
     pvc_name: test-pvc-01
     namespace: test
-    new_size: 20Gi  # increase PVC size to 20Gi
+    cluster: openshift-apaclab
+    new_size: 10Gi          # adjust as needed
+    threshold: 10           # percent
+
   tasks:
-    - name: Patch PVC to increase size
+    - name: Get current PVC size
+      core.k8s_info:
+        api_version: v1
+        kind: PersistentVolumeClaim
+        name: \"{{ pvc_name }}\"
+        namespace: \"{{ namespace }}\"
+      register: pvc_info
+
+    - name: Calculate available space percentage
+      set_fact:
+        available_percent: \"{{ (pvc_info.resources[0].status.capacity.storage | regex_replace('Gi', '') | float) / (pvc_info.resources[0].spec.resources.requests.storage | regex_replace('Gi', '') | float) * 100 }}\"
+
+    - name: Patch PVC to increase size if below threshold
       core.k8s:
-        state: present
+        api_version: v1
+        kind: PersistentVolumeClaim
+        name: \"{{ pvc_name }}\"
+        namespace: \"{{ namespace }}\"
         definition:
-          apiVersion: v1
-          kind: PersistentVolumeClaim
-          metadata:
-            name: \"{{ pvc_name }}\"
-            namespace: \"{{ namespace }}\"
           spec:
             resources:
               requests:
                 storage: \"{{ new_size }}\"
-      register: patch_result
+      when: available_percent < threshold
 
-    - name: Wait for PVC to be bound
+    - name: Verify PVC size after patch
       core.k8s_info:
+        api_version: v1
         kind: PersistentVolumeClaim
-        namespace: \"{{ namespace }}\"
         name: \"{{ pvc_name }}\"
-      register: pvc_info
-      until: pvc_info.resources[0].status.phase == \"Bound\"
-      retries: 10
-      delay: 10
+        namespace: \"{{ namespace }}\"
+      register: pvc_info_after
 
-    - name: Verify available disk space
-      shell: |
-        oc get pvc {{ pvc_name }} -n {{ namespace }} -o jsonpath='{.status.capacity.storage}'
-      register: pvc_capacity
-      changed_when: false
-
-    - name: Report PVC status
+    - name: Report final PVC size
       debug:
-        msg: |
-          PVC {{ pvc_name }} in namespace {{ namespace }} has been patched to {{ new_size }}.
-          Current capacity: {{ pvc_capacity.stdout }}.
+        msg: \"PVC {{ pvc_name }} in namespace {{ namespace }} now has size {{ pvc_info_after.resources[0].spec.resources.requests.storage }}\"
