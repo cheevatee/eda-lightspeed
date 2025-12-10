@@ -88,7 +88,7 @@
 
     - name: Sync Git repository to /tmp
       ansible.builtin.git:
-        repo: "https://github.com/cheevatee/eda-lightspeed.git"
+        repo: "https://github.com/{{ lookup('env','GITHUB_USERNAME') }}/eda-lightspeed.git"
         dest: "/tmp/eda-lightspeed"
         version: main
         force: yes
@@ -126,7 +126,7 @@
     - name: Configure Git remote with PAT
       ansible.builtin.command: >
         git remote set-url origin
-        https://{{ lookup('env','GITHUB_USERNAME') }}:{{ lookup('env','GITHUB_TOKEN') }}@github.com/cheevatee/eda-lightspeed.git
+        https://{{ lookup('env','GITHUB_USERNAME') }}:{{ lookup('env','GITHUB_TOKEN') }}@github.com/{{ lookup('env','GITHUB_USERNAME') }}/eda-lightspeed.git
       args:
         chdir: /tmp/eda-lightspeed
 
