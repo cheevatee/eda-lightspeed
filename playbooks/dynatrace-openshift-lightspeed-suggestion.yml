@@ -68,14 +68,19 @@
           - ols_response.content | length > 0
         fail_msg: "No content received from OpenShift Lightspeed."
 
-    - name: Show the generated solution (Formatted)
+    - name: Show the generated suggestion (Formatted)
       debug:
         msg: "{{ ols_response.content.split('\n') }}"
 
     - name: Clean the response text
       set_fact:
-        clean_solution: "{{ ols_response.content.split('---')[0] | trim }}"
+        ols_suggestion: "{{ ols_response.content.split('---')[0] | trim }}"
 
-    - name: Show Clean Solution
+    - name: Show Clean suggestion
       debug:
-        msg: "{{ clean_solution.split('\n') }}"
+        msg: "{{ ols_suggestion.split('\n') }}"
+
+    - name: Export ols_suggestion to AAP Workflow
+      ansible.builtin.set_stats:
+        data:
+          ols_suggestion: "{{ ols_suggestion }}"
