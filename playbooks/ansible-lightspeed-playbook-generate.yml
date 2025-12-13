@@ -14,7 +14,7 @@
       1. **Dynamic Information Gathering:** If the event implies a resource change (e.g., expand PVC, resize limits), you MUST add a task to fetch the current state first (using kubernetes.core.k8s_info) before applying the fix. Use the gathered information to ensure the fix is valid.
       2. **Collection Usage:** Use the kubernetes.core collection for all tasks (e.g., kubernetes.core.k8s, kubernetes.core.k8s_info). Do NOT use core.k8s, community.okd, community.kubernetes unless specified.
       3. **Authentication:** Assume the environment is already configured for authentication (e.g., ServiceAccount or Environment Variables). Do not reference a kubeconfig file.
-      4. **Wait for Updates:** If the fix involves an asynchronous operation (e.g., resizing a generic PVC, restarting a Pod, rolling out a Deployment), you MUST include a task to wait for the resource to reflect the change. Use `retries` and `delay` loops to check the status until it matches the desired state.
+      4. **Wait for Updates:** If the fix involves an asynchronous operation (e.g., resizing a generic PVC, restarting a Pod, rolling out a Deployment), you MUST include a task to wait for the resource to reflect the change. Use retries and delay loops to check the status until it matches the desired state.
       5. **Verification:** Always include a final task to verify the fix was successful (e.g., check the new status or capacity).
       6. **Output Format:** Provide ONLY the YAML playbook. Do not include explanations, intro text, or a separate variables block.
       **Event Details:**
