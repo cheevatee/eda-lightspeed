@@ -102,15 +102,15 @@
       ansible.builtin.debug:
         msg: "{{ ls_output.stdout }}"
 
-    - name: Clear existing remediation playbook file
-      ansible.builtin.copy:
-        dest: /tmp/{{ lookup('env','GITHUB_REPOSITORY') }}/playbooks/remediation-playbook.yml
-        content: ""          # truncate / create empty file
-        mode: '0644'
+#    - name: Clear existing remediation playbook file
+#      ansible.builtin.copy:
+#        dest: /tmp/{{ lookup('env','GITHUB_REPOSITORY') }}/playbooks/remediation-playbook.yml
+#        content: ""          # truncate / create empty file
+#        mode: '0644'
 
     - name: Save Ansible Lightspeed response to remediation playbook
       ansible.builtin.copy:
-        dest: /tmp/{{ lookup('env','GITHUB_REPOSITORY') }}/playbooks/remediation-playbook.yml
+        dest: /tmp/{{ lookup('env','GITHUB_REPOSITORY') }}/playbooks/{{ event_id }}-remediation-playbook.yml
         content: "{{ als_response.stdout }}"
         mode: '0644'
 
@@ -133,14 +133,14 @@
 
     - name: Add remediation playbook to Git index
       ansible.builtin.command:
-        cmd: "git add playbooks/remediation-playbook.yml"
+        cmd: "git add playbooks/{{ event_id }}-remediation-playbook.yml"
         chdir: "/tmp/{{ lookup('env','GITHUB_REPOSITORY') }}"
       register: git_add
       changed_when: "'fatal' not in git_add.stderr"
 
     - name: Commit changes
       ansible.builtin.command:
-        cmd: "git commit -m 'Update remediation playbook from EDA Lightspeed'"
+        cmd: "git commit -m 'Update {{ event_id }} remediation playbook from EDA Lightspeed'"
         chdir: "/tmp/{{ lookup('env','GITHUB_REPOSITORY') }}"
       register: git_commit
       changed_when: "'nothing to commit' not in git_commit.stdout"
