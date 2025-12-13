@@ -65,17 +65,45 @@
           Missing ROUTE or TOKEN. Set env vars ROUTE and TOKEN or pass
           --extra-vars 'als_route=https://<route> als_token=<token>'.
 
-    - name: Query Ansible Lightspeed (streaming) and create an ansible playbook.
-      shell: |
-        set -o pipefail
-        export ROUTE="{{ als_route }}"
-        export TOKEN="{{ als_token }}"
-        curl -k -sS -X POST   -H "Authorization: Bearer $TOKEN"   -H "Content-Type: application/json"   -d "{\"query\": \"{{ als_query_one_line }}\"}" "$ROUTE/api/v1/ai/chat/" | sed -n 's/.*"response":"\(.*\)","rag_chunks.*/\1/p' | sed 's/\\n/\n/g; s/^```yaml\n//; s/\n```$//'
-      args:
-        executable: /bin/bash
-      register: als_response
-      changed_when: true
+#    - name: Query Ansible Lightspeed (streaming) and create an ansible playbook.
+#      shell: |
+#        set -o pipefail
+#        export ROUTE="{{ als_route }}"
+#        export TOKEN="{{ als_token }}"
+#        curl -k -sS -X POST   -H "Authorization: Bearer $TOKEN"   -H "Content-Type: application/json"   -d "{\"query\": \"{{ als_query_one_line }}\"}" "$ROUTE/api/v1/ai/chat/" | sed -n 's/.*"response":"\(.*\)","rag_chunks.*/\1/p' | sed 's/\\n/\n/g; s/^```yaml\n//; s/\n```$//'
+#      args:
+#        executable: /bin/bash
+#      register: als_response
+#      changed_when: true
 #      no_log: true  # hides the token in logs
+
+    - name: Query Ansible Lightspeed using uri (preserve als_response.stdout)
+      ansible.builtin.uri:
+        url: "{{ als_route }}/api/v1/ai/chat/"
+        method: POST
+        validate_certs: false
+        headers:
+          Authorization: "Bearer {{ als_token }}"
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          query: "{{ als_query_one_line }}"
+        return_content: true
+        status_code: 200
+      register: als_http
+      no_log: true
+
+    - name: Normalize Lightspeed response into als_response.stdout
+      ansible.builtin.set_fact:
+        als_response:
+          stdout: >-
+            {{
+              als_http.json.response
+              | regex_replace('^```yaml\\s*', '')
+              | regex_replace('^```\\s*', '')
+              | regex_replace('\\s*```\\s*$', '')
+              | trim
+            }}
 
     - name: Fail if Lightspeed returned nothing
       assert:
