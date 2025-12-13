@@ -66,7 +66,7 @@
         executable: /bin/bash
       register: als_response
       changed_when: true
-      no_log: true  # hides the token in logs
+#      no_log: true  # hides the token in logs
       
     - name: Fail if Lightspeed returned nothing
       assert:
