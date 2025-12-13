@@ -91,7 +91,7 @@
         return_content: true
         status_code: 200
       register: als_http
-      no_log: true
+      no_log: false
 
     - name: Normalize Lightspeed response into als_response.stdout
       ansible.builtin.set_fact:
