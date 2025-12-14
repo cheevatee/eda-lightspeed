@@ -1,0 +1,53 @@
+- name: Fix BackOff event for certified-operators-24wn4
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Gather pods for workload certified-operators-24wn4
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=certified-operators-24wn4
+      register: pod_info
+
+    - name: Identify problematic pods
+      set_fact:
+        problematic_pods: "{{ problematic_pods | default([]) + [item.metadata.name] }}"
+      loop: "{{ pod_info.resources }}"
+      when: >
+        (item.status.containerStatuses is defined) and
+        (
+          (item.status.containerStatuses | selectattr('state.waiting.reason', 'equalto', 'ImagePullBackOff') | list | length > 0) or
+          (item.status.containerStatuses | selectattr('state.waiting.reason', 'equalto', 'CrashLoopBackOff') | list | length > 0)
+        )
+
+    - name: Delete problematic pods
+      kubernetes.core.k8s:
+        state: absent
+        kind: Pod
+        namespace: openshift-marketplace
+        name: "{{ item }}"
+      loop: "{{ problematic_pods }}"
+      when: problematic_pods | length > 0
+
+    - name: Wait for pods to be Running
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=certified-operators-24wn4
+      register: pod_status
+      retries: 30
+      delay: 10
+      until: >
+        pod_status.resources | map(attribute='status.phase') | list | unique | length == 1 and
+        pod_status.resources | map(attribute='status.phase') | list | first == 'Running'
+
+    - name: Verify no pods in BackOff
+      assert:
+        that:
+          - pod_status.resources | map(attribute='status.phase') | list | unique | length == 1
+          - pod_status.resources | map(attribute='status.phase') | list | first == 'Running'
+        fail_msg: "Some pods are still not running"
