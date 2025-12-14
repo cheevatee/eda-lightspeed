@@ -1,0 +1,22 @@
+---
+- name: Update Job Template Configuration
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  collections:
+    - ansible.controller
+
+  vars:
+    target_template_name: "Remediation plan"
+    new_playbook: "{{ event_id }}-remediation-playbook.yml"
+    new_credential: "{{ event_cluster }}"
+
+  tasks:
+    - name: Update the Job Template
+      ansible.controller.job_template:
+        # Note: No auth details needed here!
+        name: "{{ target_template_name }}"
+        playbook: "{{ new_playbook }}"
+        credentials:
+          - "{{ new_credential }}"
+        state: present
