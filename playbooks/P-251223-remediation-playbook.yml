@@ -2,7 +2,7 @@
   hosts: localhost
   gather_facts: no
   tasks:
-    - name: Gather current PVC info
+    - name: Gather current PVC information
       kubernetes.core.k8s_info:
         api_version: v1
         kind: PersistentVolumeClaim
@@ -10,13 +10,14 @@
         name: test-pvc-01
       register: pvc_info
 
-    - name: Set current size
+    - name: Determine current and new storage size
       set_fact:
-        current_size: \"{{ pvc_info.resources[0].status.capacity.storage }}\"
-
-    - name: Calculate new size (increase by 10Gi)
-      set_fact:
-        new_size: \"{{ (current_size | regex_replace('Gi', '') | int) + 10 }}Gi\"
+        current_size: \"{{ pvc_info.resources[0].spec.resources.requests.storage }}\"
+        new_size: >-
+          {{
+            (current_size | regex_replace('([0-9]+)([a-zA-Z]+)', '\\\\1') | int + 5) |
+            string + (current_size | regex_replace('([0-9]+)([a-zA-Z]+)', '\\\\2'))
+          }}
 
     - name: Patch PVC to new size
       kubernetes.core.k8s:
@@ -33,20 +34,22 @@
                 storage: \"{{ new_size }}\"
       register: patch_result
 
-    - name: Wait for PVC to be bound and size updated
+    - name: Wait for PVC to reflect new size
       kubernetes.core.k8s_info:
         api_version: v1
         kind: PersistentVolumeClaim
         namespace: test
         name: test-pvc-01
       register: pvc_status
-      until: pvc_status.resources[0].status.phase == 'Bound' and pvc_status.resources[0].status.capacity.storage == new_size
+      until: pvc_status.resources[0].status.capacity.storage == new_size
       retries: 10
-      delay: 15
+      delay: 30
 
-    - name: Verify PVC size
-      assert:
-        that:
-          - pvc_status.resources[0].status.capacity.storage == new_size
-        fail_msg: \"PVC size did not update to {{ new_size }}\"
-        success_msg: \"PVC size successfully updated to {{ new_size }}\"
+    - name: Verify PVC size matches expected value
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: PersistentVolumeClaim
+        namespace: test
+        name: test-pvc-01
+      register: final_pvc
+      failed_when: final_pvc.resources[0].status.capacity.storage != new_size
