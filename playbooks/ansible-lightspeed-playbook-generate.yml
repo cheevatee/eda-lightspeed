@@ -17,6 +17,7 @@
       4. Wait for Updates: If the fix involves an asynchronous operation (e.g., resizing a generic PVC, restarting a Pod, rolling out a Deployment), you MUST include a task to wait for the resource to reflect the change. Use retries and delay loops to check the status until it matches the desired state.
       5. Verification: Always include a final task to verify the fix was successful (e.g., check the new status or capacity).
       6. Output Format: Provide ONLY the YAML playbook. Do not include explanations, intro text, or a separate variables block.
+      7. Variable Dependencies: Do NOT define a variable and try to use it within the same `set_fact` task. If a new variable depends on a value calculated in `set_fact`, you MUST split them into two separate `set_fact` tasks.
       Event Details:
       event_id: {{ event_id | default('') }}
       event_name: {{ event_name | default('') }}
