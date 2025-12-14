@@ -1,9 +1,8 @@
----
-- name: Fix and verify low disk space on PVC
+- name: Fix low disk space on PVC
   hosts: localhost
   gather_facts: no
   tasks:
-    - name: Gather current PVC information
+    - name: Gather current PVC info
       kubernetes.core.k8s_info:
         api_version: v1
         kind: PersistentVolumeClaim
@@ -11,11 +10,13 @@
         name: test-pvc-01
       register: pvc_info
 
-    - name: Calculate new PVC size
+    - name: Set current size
       set_fact:
-        current_size_gi: \"{{ pvc_info.resources[0].spec.resources.requests.storage | regex_replace('Gi', '') | int }}\"
-        new_size_gi: \"{{ current_size_gi + 1 }}\"
-        new_size: \"{{ new_size_gi }}Gi\"
+        current_size: \"{{ pvc_info.resources[0].status.capacity.storage }}\"
+
+    - name: Calculate new size (increase by 10Gi)
+      set_fact:
+        new_size: \"{{ (current_size | regex_replace('Gi', '') | int) + 10 }}Gi\"
 
     - name: Patch PVC to new size
       kubernetes.core.k8s:
@@ -32,7 +33,7 @@
                 storage: \"{{ new_size }}\"
       register: patch_result
 
-    - name: Wait for PVC to be bound and resized
+    - name: Wait for PVC to be bound and size updated
       kubernetes.core.k8s_info:
         api_version: v1
         kind: PersistentVolumeClaim
@@ -40,8 +41,8 @@
         name: test-pvc-01
       register: pvc_status
       until: pvc_status.resources[0].status.phase == 'Bound' and pvc_status.resources[0].status.capacity.storage == new_size
-      retries: 30
-      delay: 10
+      retries: 10
+      delay: 15
 
     - name: Verify PVC size
       assert:
