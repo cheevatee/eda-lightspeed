@@ -1,6 +1,10 @@
-- name: Fix low disk space on PVC
+---
+- name: Fix and Verify PVC Low Disk Space
   hosts: localhost
   gather_facts: no
+  collections:
+    - kubernetes.core
+
   tasks:
     - name: Gather current PVC information
       kubernetes.core.k8s_info:
@@ -10,14 +14,13 @@
         name: test-pvc-01
       register: pvc_info
 
-    - name: Determine current and new storage size
+    - name: Set current PVC size
       set_fact:
         current_size: \"{{ pvc_info.resources[0].spec.resources.requests.storage }}\"
-        new_size: >-
-          {{
-            (current_size | regex_replace('([0-9]+)([a-zA-Z]+)', '\\\\1') | int + 5) |
-            string + (current_size | regex_replace('([0-9]+)([a-zA-Z]+)', '\\\\2'))
-          }}
+
+    - name: Calculate new PVC size (increase by 10Gi)
+      set_fact:
+        new_size: \"{{ (current_size | regex_replace('([0-9]+)([a-zA-Z]+)', '\\\\1') | int) + 10 }}Gi\"
 
     - name: Patch PVC to new size
       kubernetes.core.k8s:
@@ -34,22 +37,20 @@
                 storage: \"{{ new_size }}\"
       register: patch_result
 
-    - name: Wait for PVC to reflect new size
+    - name: Wait for PVC to be bound and size updated
       kubernetes.core.k8s_info:
         api_version: v1
         kind: PersistentVolumeClaim
         namespace: test
         name: test-pvc-01
       register: pvc_status
-      until: pvc_status.resources[0].status.capacity.storage == new_size
+      until: pvc_status.resources[0].status.phase == \"Bound\" and pvc_status.resources[0].status.capacity.storage == new_size
       retries: 10
-      delay: 30
+      delay: 15
 
     - name: Verify PVC size matches expected value
-      kubernetes.core.k8s_info:
-        api_version: v1
-        kind: PersistentVolumeClaim
-        namespace: test
-        name: test-pvc-01
-      register: final_pvc
-      failed_when: final_pvc.resources[0].status.capacity.storage != new_size
+      assert:
+        that:
+          - pvc_status.resources[0].status.capacity.storage == new_size
+        fail_msg: \"PVC size did not update to {{ new_size }}\"
+        success_msg: \"PVC size successfully updated to {{ new_size }}\"
