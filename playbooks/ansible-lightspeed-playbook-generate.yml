@@ -20,7 +20,7 @@
       7. Variable Dependencies: Do NOT define a variable and try to use it within the same set_fact task. If a new variable depends on a value calculated in set_fact, you MUST split them into two separate set_fact tasks.
       8. No Escaped Quotes: Do not use backslash-quotes or escaped quotes in your YAML. Do not add extra quotes around variables. Use standard YAML format for all strings.
       9. No Patch Parameter: The kubernetes.core.k8s module does NOT have a patch parameter. To update a resource, provide the desired state inside the definition parameter. The module automatically merges changes.
-      10. Integer Math and Units: Ansible variables are strings by default. You must explicitly convert variables to integers before adding or subtracting values. When appending a unit string like Gi to the result, use the Ansible format filter to safely combine the number and the text string.
+      10. Integer Math Strategy: Ansible stores all variables as text strings between tasks. You must apply the integer conversion filter to the variable immediately inside the math expression. Do not rely on a previous task to save the value as an integer. Perform the conversion and the addition in the same step.
       Event Details:
       event_id: {{ event_id | default('') }}
       event_name: {{ event_name | default('') }}
