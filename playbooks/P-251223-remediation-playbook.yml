@@ -11,31 +11,25 @@
         namespace: test
       register: pvc_info
 
-    - name: Set current PVC size
+    - name: Extract current PVC size in Gi
       set_fact:
-        current_size: "{{ pvc_info.resources[0].status.capacity.storage }}"
+        current_size_gi: "{{ pvc_info.resources[0].spec.resources.requests.storage | regex_replace('Gi', '') | int }}"
 
-    - name: Extract numeric value from current size
+    - name: Calculate new PVC size
       set_fact:
-        current_size_num: "{{ current_size | regex_replace('Gi', '') | int }}"
+        new_size_gi: "{{ current_size_gi + 1 }}"
 
-    - name: Calculate new PVC size (increase by 10Gi)
-      set_fact:
-        new_size: "{{ (current_size_num + 10) ~ 'Gi' }}"
-
-    - name: Update PVC with new size
+    - name: Update PVC size
       kubernetes.core.k8s:
-        state: present
+        api_version: v1
+        kind: PersistentVolumeClaim
+        name: test-pvc-01
+        namespace: test
         definition:
-          apiVersion: v1
-          kind: PersistentVolumeClaim
-          metadata:
-            name: test-pvc-01
-            namespace: test
           spec:
             resources:
               requests:
-                storage: "{{ new_size }}"
+                storage: "{{ new_size_gi }}Gi"
 
     - name: Wait for PVC to reflect new size
       kubernetes.core.k8s_info:
@@ -43,22 +37,14 @@
         kind: PersistentVolumeClaim
         name: test-pvc-01
         namespace: test
-      register: pvc_wait
-      until: pvc_wait.resources[0].status.capacity.storage == new_size
-      retries: 30
-      delay: 10
+      register: pvc_status
+      until: pvc_status.resources[0].status.capacity.storage == "{{ new_size_gi }}Gi"
+      retries: 10
+      delay: 15
 
-    - name: Verify PVC size after update
-      kubernetes.core.k8s_info:
-        api_version: v1
-        kind: PersistentVolumeClaim
-        name: test-pvc-01
-        namespace: test
-      register: pvc_verify
-
-    - name: Assert PVC size matches expected
+    - name: Verify PVC size
       assert:
         that:
-          - pvc_verify.resources[0].status.capacity.storage == new_size
-        fail_msg: "PVC size did not update to {{ new_size }}"
-        success_msg: "PVC size successfully updated to {{ new_size }}"
+          - pvc_status.resources[0].status.capacity.storage == "{{ new_size_gi }}Gi"
+        fail_msg: "PVC size did not update to {{ new_size_gi }}Gi"
+        success_msg: "PVC size successfully updated to {{ new_size_gi }}Gi"
