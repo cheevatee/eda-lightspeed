@@ -8,7 +8,7 @@
 
   vars:
     target_template_name: "Remediation plan"
-    new_playbook: "{{ event_id }}-remediation-playbook.yml"
+    new_playbook: "playbooks/{{ event_id }}-remediation-playbook.yml"
     new_credential: "{{ event_cluster }}"
 
   tasks:
