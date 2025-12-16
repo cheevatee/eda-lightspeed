@@ -1,29 +1,26 @@
----
-- name: Fix and verify low disk space on PVC
+- name: Fix low disk space on PVC
   hosts: localhost
-  gather_facts: false
+  gather_facts: no
   tasks:
-    - name: Gather current PVC information
+    - name: Gather current PVC info
       kubernetes.core.k8s_info:
+        api_version: v1
         kind: PersistentVolumeClaim
         name: test-pvc-01
         namespace: test
       register: pvc_info
 
-    - name: Extract current PVC size in Gi
+    - name: Set current size in Gi
       set_fact:
         current_size_gi: "{{ pvc_info.resources[0].spec.resources.requests.storage | regex_replace('Gi', '') | int }}"
 
-    - name: Calculate new PVC size (add 10 Gi)
+    - name: Calculate new size
       set_fact:
-        new_size_gi: "{{ current_size_gi + 10 }}"
+        new_size_gi: "{{ current_size_gi | int + 10 }}"
 
-    - name: Build new size string
-      set_fact:
-        new_size: "{{ new_size_gi }}Gi"
-
-    - name: Resize PVC
+    - name: Update PVC size
       kubernetes.core.k8s:
+        state: present
         definition:
           apiVersion: v1
           kind: PersistentVolumeClaim
@@ -33,27 +30,22 @@
           spec:
             resources:
               requests:
-                storage: "{{ new_size }}"
+                storage: "{{ new_size_gi }}Gi"
 
-    - name: Wait for PVC resize to complete
+    - name: Wait for PVC to be resized
       kubernetes.core.k8s_info:
+        api_version: v1
         kind: PersistentVolumeClaim
         name: test-pvc-01
         namespace: test
-      register: pvc_status
-      until: pvc_status.resources[0].status.capacity.storage == new_size
+      register: pvc_resized
+      until: pvc_resized.resources[0].status.capacity.storage | regex_replace('Gi', '') | int >= new_size_gi
       retries: 30
       delay: 10
 
-    - name: Verify PVC size
-      kubernetes.core.k8s_info:
-        kind: PersistentVolumeClaim
-        name: test-pvc-01
-        namespace: test
-      register: pvc_verify
-
-    - name: Assert PVC size matches expected
+    - name: Verify PVC capacity
       assert:
         that:
-          - pvc_verify.resources[0].status.capacity.storage == new_size
-        fail_msg: "PVC size did not update to {{ new_size }}"
+          - pvc_resized.resources[0].status.capacity.storage | regex_replace('Gi', '') | int >= new_size_gi
+        fail_msg: "PVC size not updated as expected."
+        success_msg: "PVC resized successfully."
