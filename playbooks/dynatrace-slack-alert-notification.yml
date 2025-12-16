@@ -6,7 +6,7 @@
   vars:
     slack_webhook_url: "{{ lookup('env','SLACK_WEBHOOK_URL') | default(webhook_url | default(''), true) }}"
     slack_text: |-
-      :alertturning: *[OpenShift Alert !!!]* :alertturning:
+      :fire: *[OpenShift Alert !!!]* :fire:
       *Event ID:* {{ event_id | default('') }}
       *Event Name:* {{ event_name | default('') }}
       *Cluster Name:* {{ event_cluster | default('') }}
