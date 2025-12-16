@@ -20,7 +20,9 @@
       7. Variable Dependencies: Do NOT define a variable and try to use it within the same set_fact task. If a new variable depends on a value calculated in set_fact, you MUST split them into two separate set_fact tasks.
       8. No Escaped Quotes: Do not use backslash-quotes or escaped quotes in your YAML. Do not add extra quotes around variables. Use standard YAML format for all strings.
       9. No Patch Parameter: The kubernetes.core.k8s module does NOT have a patch parameter. To update a resource, provide the desired state inside the definition parameter. The module automatically merges changes.
-      10. Mandatory Re-Casting for Math: Ansible often treats retrieved facts as strings, even if previously defined as integers. You MUST explicitly cast the variable to int inside the calculation expression every time you use it. INCORRECT: {{ current_size_gi + 10 }} CORRECT: {{ current_size_gi | int + 10 }}
+      10. Mandatory Re-Casting for Math: Ansible often treats retrieved facts as strings, even if previously defined as integers. You MUST explicitly cast the variable to int inside the calculation expression every time you use it. 
+          INCORRECT: {{ '{{' }} current_size_gi + 10 {{ '}}' }}
+          CORRECT: {{ '{{' }} current_size_gi | int + 10 {{ '}}' }}
       Event Details:
       event_id: {{ event_id | default('') }}
       event_name: {{ event_name | default('') }}
