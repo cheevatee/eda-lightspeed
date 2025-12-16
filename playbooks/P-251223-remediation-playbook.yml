@@ -1,22 +1,32 @@
-- name: Fix low disk space on PVC
+---
+- name: Fix and verify low disk space on PVC
   hosts: localhost
   gather_facts: no
+
   tasks:
-    - name: Gather current PVC info
+    - name: Gather current PVC information
       kubernetes.core.k8s_info:
         api_version: v1
         kind: PersistentVolumeClaim
-        name: test-pvc-01
         namespace: test
+        name: test-pvc-01
       register: pvc_info
 
-    - name: Set current size in Gi
+    - name: Set current PVC size
       set_fact:
-        current_size_gi: "{{ pvc_info.resources[0].spec.resources.requests.storage | regex_replace('Gi', '') | int }}"
+        current_size: "{{ pvc_info.resources[0].spec.resources.requests.storage }}"
 
-    - name: Calculate new size
+    - name: Extract numeric value of current size
       set_fact:
-        new_size_gi: "{{ current_size_gi | int + 10 }}"
+        current_size_num: "{{ current_size | regex_replace('Gi', '') | int }}"
+
+    - name: Calculate target size number
+      set_fact:
+        target_size_num: "{{ current_size_num + 1 }}"
+
+    - name: Build target size string
+      set_fact:
+        target_size: "{{ target_size_num }}Gi"
 
     - name: Update PVC size
       kubernetes.core.k8s:
@@ -30,22 +40,23 @@
           spec:
             resources:
               requests:
-                storage: "{{ new_size_gi }}Gi"
+                storage: "{{ target_size }}"
 
-    - name: Wait for PVC to be resized
+    - name: Wait for PVC to reflect new size
       kubernetes.core.k8s_info:
         api_version: v1
         kind: PersistentVolumeClaim
-        name: test-pvc-01
         namespace: test
-      register: pvc_resized
-      until: pvc_resized.resources[0].status.capacity.storage | regex_replace('Gi', '') | int >= new_size_gi
-      retries: 30
-      delay: 10
+        name: test-pvc-01
+      register: pvc_status
+      until: pvc_status.resources[0].status.phase == 'Bound' and
+             (pvc_status.resources[0].status.capacity.storage | regex_replace('Gi', '') | int) >= target_size_num
+      retries: 10
+      delay: 30
 
-    - name: Verify PVC capacity
+    - name: Verify PVC size update
       assert:
         that:
-          - pvc_resized.resources[0].status.capacity.storage | regex_replace('Gi', '') | int >= new_size_gi
-        fail_msg: "PVC size not updated as expected."
-        success_msg: "PVC resized successfully."
+          - pvc_status.resources[0].status.capacity.storage | regex_replace('Gi', '') | int >= target_size_num
+        fail_msg: "PVC size not updated as expected"
+        success_msg: "PVC size updated successfully"
