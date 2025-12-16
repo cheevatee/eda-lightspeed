@@ -1,0 +1,57 @@
+- name: Fix and verify low disk space on PVC
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Gather current PVC information
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: PersistentVolumeClaim
+        name: prime-2c7efccd-e30d-4dc6-8bf7-e8a3aec62a43
+        namespace: openshift-virtualization-os-images
+      register: pvc_info
+
+    - name: Extract current size in Gi
+      set_fact:
+        current_size_gi: "{{ pvc_info.resources[0].spec.resources.requests.storage | regex_replace('Gi', '') | int }}"
+
+    - name: Calculate new size (increase by 10 Gi)
+      set_fact:
+        new_size_gi: "{{ current_size_gi | int + 10 }}"
+
+    - name: Build new size string
+      set_fact:
+        new_size: "{{ new_size_gi }}Gi"
+
+    - name: Update PVC size
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: PersistentVolumeClaim
+          metadata:
+            name: prime-2c7efccd-e30d-4dc6-8bf7-e8a3aec62a43
+            namespace: openshift-virtualization-os-images
+          spec:
+            resources:
+              requests:
+                storage: "{{ new_size }}"
+
+    - name: Wait for PVC to be bound and capacity updated
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: PersistentVolumeClaim
+        name: prime-2c7efccd-e30d-4dc6-8bf7-e8a3aec62a43
+        namespace: openshift-virtualization-os-images
+      register: pvc_status
+      retries: 10
+      delay: 30
+      until:
+        - pvc_status.resources[0].status.phase == 'Bound'
+        - pvc_status.resources[0].status.capacity.storage == new_size
+
+    - name: Verify PVC capacity
+      assert:
+        that:
+          - pvc_status.resources[0].status.capacity.storage == new_size
+        fail_msg: "PVC size not updated to {{ new_size }}"
+        success_msg: "PVC size successfully updated to {{ new_size }}"
