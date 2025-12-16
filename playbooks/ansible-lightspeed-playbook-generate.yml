@@ -42,9 +42,9 @@
         - event_description
       when: vars[item] is defined
 
-    - name: Show als query
-      ansible.builtin.debug:
-        msg: "{{ als_query }}"
+#    - name: Show als query
+#      ansible.builtin.debug:
+#        msg: "{{ als_query }}"
 
     - name: Normalize als_query to a single-line string and remove colon
       set_fact:
@@ -55,9 +55,9 @@
             | regex_replace(':', '')
             | trim }}"
 
-    - name: Show als query one line
-      ansible.builtin.debug:
-        msg: "{{ als_query_one_line }}"
+#    - name: Show als query one line
+#      ansible.builtin.debug:
+#        msg: "{{ als_query_one_line }}"
 
     - name: Ensure ROUTE and TOKEN are provided
       assert:
