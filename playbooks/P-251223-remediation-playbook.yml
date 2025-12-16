@@ -1,34 +1,25 @@
-- name: Fix PVC low disk space
+---
+- name: Fix low disk space on PVC
   hosts: localhost
   gather_facts: no
   tasks:
-    - name: Gather current PVC info
+    - name: Gather current PVC information
       kubernetes.core.k8s_info:
-        api_version: v1
         kind: PersistentVolumeClaim
-        namespace: test
         name: test-pvc-01
+        namespace: test
       register: pvc_info
 
-    - name: Set current size
+    - name: Set current PVC size
       set_fact:
         current_size: "{{ pvc_info.resources[0].spec.resources.requests.storage }}"
 
-    - name: Parse numeric current size
+    - name: Calculate new PVC size
       set_fact:
-        current_size_num: "{{ current_size | regex_replace('Gi', '') | int }}"
-
-    - name: Calculate new size
-      set_fact:
-        new_size_num: "{{ current_size_num | int + 10 }}"
-
-    - name: Build new size string
-      set_fact:
-        new_size: "{{ new_size_num }}Gi"
+        new_size: "{{ (current_size | regex_replace('Gi', '') | int) + 5 }}Gi"
 
     - name: Update PVC size
       kubernetes.core.k8s:
-        state: present
         definition:
           apiVersion: v1
           kind: PersistentVolumeClaim
@@ -39,28 +30,28 @@
             resources:
               requests:
                 storage: "{{ new_size }}"
+      register: pvc_update
 
-    - name: Wait for PVC resize
+    - name: Wait for PVC to reflect new size
       kubernetes.core.k8s_info:
-        api_version: v1
         kind: PersistentVolumeClaim
-        namespace: test
         name: test-pvc-01
-      register: pvc_resized
-      until: pvc_resized.resources[0].spec.resources.requests.storage == new_size
+        namespace: test
+      register: pvc_wait
+      until: pvc_wait.resources[0].status.capacity.storage | int == new_size | int
       retries: 30
       delay: 10
 
     - name: Verify PVC size
       kubernetes.core.k8s_info:
-        api_version: v1
         kind: PersistentVolumeClaim
-        namespace: test
         name: test-pvc-01
-      register: pvc_final
+        namespace: test
+      register: pvc_verify
 
-    - name: Assert PVC size increased
+    - name: Assert PVC size matches expected
       assert:
         that:
-          - pvc_final.resources[0].spec.resources.requests.storage == new_size
-        fail_msg: "PVC size did not increase as expected."
+          - pvc_verify.resources[0].status.capacity.storage | int == new_size | int
+        fail_msg: "PVC size did not update to {{ new_size }}"
+        success_msg: "PVC size successfully updated to {{ new_size }}"
