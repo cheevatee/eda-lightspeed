@@ -1,0 +1,66 @@
+- name: Fix BackOff event for certified-operators-mvlnm
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Gather pods for workload
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=certified-operators-mvlnm
+      register: pod_info
+
+    - name: Fail if no pods found
+      fail:
+        msg: "No pods found for workload certified-operators-mvlnm"
+      when: pod_info.resources | length == 0
+
+    - name: Gather deployment for workload
+      kubernetes.core.k8s_info:
+        api_version: apps/v1
+        kind: Deployment
+        namespace: openshift-marketplace
+        name: certified-operators-mvlnm
+      register: deployment_info
+
+    - name: Fail if deployment not found
+      fail:
+        msg: "Deployment certified-operators-mvlnm not found"
+      when: deployment_info.resources | length == 0
+
+    - name: Trigger rollout by adding annotation
+      kubernetes.core.k8s:
+        api_version: apps/v1
+        kind: Deployment
+        namespace: openshift-marketplace
+        name: certified-operators-mvlnm
+        definition:
+          metadata:
+            annotations:
+              kubectl.kubernetes.io/restartedAt: "{{ lookup('pipe', 'date -u +%Y-%m-%dT%H:%M:%SZ') }}"
+      register: rollout_result
+
+    - name: Wait for pods to be ready
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=certified-operators-mvlnm
+      register: pod_status
+      until: pod_status.resources | selectattr('status.phase', 'equalto', 'Running') | list | length == pod_info.resources | length
+      retries: 10
+      delay: 15
+
+    - name: Gather events in namespace
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Event
+        namespace: openshift-marketplace
+      register: events_ns
+
+    - name: Fail if any BackOff events remain for workload pods
+      fail:
+        msg: "BackOff events still present for pods"
+      when: events_ns.resources | selectattr('reason', 'equalto', 'BackOff') | selectattr('involvedObject.kind', 'equalto', 'Pod') | selectattr('involvedObject.name', 'in', pod_info.resources | map(attribute='metadata.name') | list) | list | length > 0
