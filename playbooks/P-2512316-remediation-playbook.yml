@@ -1,0 +1,77 @@
+---
+- name: Fix Out-of-memory kills for ocs-metrics-exporter
+  hosts: localhost
+  gather_facts: no
+  tasks:
+
+    - name: Gather current Deployment
+      kubernetes.core.k8s_info:
+        api_version: apps/v1
+        kind: Deployment
+        namespace: openshift-storage
+        name: ocs-metrics-exporter
+      register: deployment_info
+
+    - name: Gather current Pods
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-storage
+        label_selectors:
+          - app=ocs-metrics-exporter
+      register: pod_info
+
+    - name: Set current memory limit
+      set_fact:
+        current_memory_limit: "{{ deployment_info.resources[0].spec.template.spec.containers[0].resources.limits.memory }}"
+
+    - name: Calculate new memory limit (increase by 256Mi)
+      set_fact:
+        new_memory_limit: "{{ (current_memory_limit | regex_replace('Mi$', '') | int + 256) | string + 'Mi' }}"
+
+    - name: Update Deployment with new memory limit
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: ocs-metrics-exporter
+            namespace: openshift-storage
+          spec:
+            template:
+              spec:
+                containers:
+                  - name: ocs-metrics-exporter
+                    resources:
+                      limits:
+                        memory: "{{ new_memory_limit }}"
+                      requests:
+                        memory: "{{ new_memory_limit }}"
+      register: update_result
+
+    - name: Wait for Deployment rollout to complete
+      kubernetes.core.k8s_info:
+        api_version: apps/v1
+        kind: Deployment
+        namespace: openshift-storage
+        name: ocs-metrics-exporter
+      register: rollout_status
+      until: rollout_status.resources[0].status.available_replicas | int == rollout_status.resources[0].status.replicas | int
+      retries: 30
+      delay: 10
+
+    - name: Verify Pods are running without OOMKilled
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-storage
+        label_selectors:
+          - app=ocs-metrics-exporter
+      register: final_pod_info
+      until: >
+        (final_pod_info.resources | map(attribute='status.containerStatuses') | list | flatten |
+        map(attribute='state.terminated.reason') | list | reject('equalto', 'OOMKilled') | list | length) ==
+        (final_pod_info.resources | map(attribute='status.containerStatuses') | list | flatten | length)
+      retries: 20
+      delay: 15
