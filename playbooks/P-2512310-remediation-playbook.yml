@@ -1,0 +1,47 @@
+- name: Fix and verify pending pods for lightspeed-app-server
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Gather all pods for lightspeed-app-server
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-lightspeed
+        label_selectors:
+          - app=lightspeed-app-server
+      register: pod_info
+
+    - name: Identify pending pods
+      set_fact:
+        pending_pods: "{{ pod_info.resources | selectattr('status.phase', 'equalto', 'Pending') | list }}"
+
+    - name: Delete pending pods
+      kubernetes.core.k8s:
+        state: absent
+        definition:
+          apiVersion: v1
+          kind: Pod
+          metadata:
+            name: "{{ item.metadata.name }}"
+            namespace: openshift-lightspeed
+      loop: "{{ pending_pods }}"
+      when: pending_pods | length > 0
+
+    - name: Wait for all pods to be running
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-lightspeed
+        label_selectors:
+          - app=lightspeed-app-server
+      register: pod_status
+      until: pod_status.resources | selectattr('status.phase', 'equalto', 'Running') | list | length == pod_info.resources | length
+      retries: 10
+      delay: 15
+
+    - name: Verify all pods are running
+      assert:
+        that:
+          - pod_status.resources | selectattr('status.phase', 'equalto', 'Running') | list | length == pod_info.resources | length
+        fail_msg: "Some pods are still not running"
+        success_msg: "All pods are running"
