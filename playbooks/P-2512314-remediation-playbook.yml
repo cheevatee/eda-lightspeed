@@ -1,0 +1,45 @@
+- name: Fix and verify Pods stuck in pending for rhods-dashboard
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Gather current pods for rhods-dashboard
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: redhat-ods-applications
+        label_selectors:
+          - app=rhods-dashboard
+      register: pod_info
+
+    - name: Set list of pending pods
+      set_fact:
+        pending_pods: "{{ pod_info.resources | selectattr('status.phase', 'equalto', 'Pending') | map(attribute='metadata.name') | list }}"
+
+    - name: Delete pending pods
+      kubernetes.core.k8s:
+        state: absent
+        kind: Pod
+        namespace: redhat-ods-applications
+        name: "{{ item }}"
+      loop: "{{ pending_pods }}"
+      when: pending_pods | length > 0
+
+    - name: Wait for all rhods-dashboard pods to be Running
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: redhat-ods-applications
+        label_selectors:
+          - app=rhods-dashboard
+      register: pod_info_after
+      retries: 30
+      delay: 10
+      until: pod_info_after.resources | map(attribute='status.phase') | list | unique | length == 1 and pod_info_after.resources | map(attribute='status.phase') | list | first == 'Running'
+
+    - name: Verify all rhods-dashboard pods are Running
+      assert:
+        that:
+          - pod_info_after.resources | map(attribute='status.phase') | list | unique | length == 1
+          - pod_info_after.resources | map(attribute='status.phase') | list | first == 'Running'
+        fail_msg: "Not all rhods-dashboard pods are running"
+        success_msg: "All rhods-dashboard pods are running"
