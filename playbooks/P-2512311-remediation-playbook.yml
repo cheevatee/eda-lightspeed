@@ -1,0 +1,61 @@
+- name: Fix and verify pods stuck in pending
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Gather all pods for rhods-operator
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: redhat-ods-operator
+        label_selectors:
+          - app=redhat-ods-operator
+      register: pod_info
+
+    - name: Identify pending pods
+      set_fact:
+        pending_pods: "{{ pod_info.resources | selectattr('status.phase', 'equalto', 'Pending') | map(attribute='metadata.name') | list }}"
+
+    - name: Delete pending pods
+      kubernetes.core.k8s:
+        state: absent
+        kind: Pod
+        namespace: redhat-ods-operator
+        name: "{{ item }}"
+      loop: "{{ pending_pods }}"
+      when: pending_pods | length > 0
+
+    - name: Wait for all rhods-operator pods to be Running
+      block:
+        - name: Poll pod status
+          kubernetes.core.k8s_info:
+            api_version: v1
+            kind: Pod
+            namespace: redhat-ods-operator
+            label_selectors:
+              - app=redhat-ods-operator
+          register: pod_status
+          retries: 30
+          delay: 10
+          until: >
+            pod_status.resources | map(attribute='status.phase') | list | unique | length == 1
+            and pod_status.resources | map(attribute='status.phase') | list | first == 'Running'
+      rescue:
+        - name: Fail if pods did not become Running
+          fail:
+            msg: "Pods did not reach Running state within timeout"
+
+    - name: Verify final pod status
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: redhat-ods-operator
+        label_selectors:
+          - app=redhat-ods-operator
+      register: final_pods
+
+    - name: Assert all pods are Running
+      assert:
+        that:
+          - final_pods.resources | map(attribute='status.phase') | list | unique | length == 1
+          - final_pods.resources | map(attribute='status.phase') | list | first == 'Running'
+        fail_msg: "Some pods are not in Running state"
