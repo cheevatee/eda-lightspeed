@@ -1,0 +1,63 @@
+- name: Fix No pod ready for kuberay-operator
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Gather deployment information
+      kubernetes.core.k8s_info:
+        kind: Deployment
+        name: kuberay-operator
+        namespace: redhat-ods-applications
+      register: deployment_info
+
+    - name: Build pod selector from deployment
+      set_fact:
+        pod_selector: "{{ deployment_info.resources[0].spec.selector.matchLabels | dict2items | map('join', '=') | join(',') }}"
+
+    - name: Gather pod information
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: redhat-ods-applications
+        label_selectors: "{{ pod_selector }}"
+      register: pod_info
+
+    - name: Set replica counts
+      set_fact:
+        ready_replicas: "{{ deployment_info.resources[0].status.readyReplicas | default(0) | int }}"
+        desired_replicas: "{{ deployment_info.resources[0].spec.replicas | default(1) | int }}"
+
+    - name: Delete pods that are not ready
+      when: ready_replicas < desired_replicas
+      kubernetes.core.k8s:
+        state: absent
+        kind: Pod
+        name: "{{ item.metadata.name }}"
+        namespace: redhat-ods-applications
+      loop: "{{ pod_info.resources }}"
+      loop_control:
+        label: "{{ item.metadata.name }}"
+
+    - name: Wait for deployment to become ready
+      kubernetes.core.k8s_info:
+        kind: Deployment
+        name: kuberay-operator
+        namespace: redhat-ods-applications
+      register: deployment_status
+      until: deployment_status.resources[0].status.readyReplicas | default(0) | int == desired_replicas
+      retries: 10
+      delay: 15
+
+    - name: Gather final pod status
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: redhat-ods-applications
+        label_selectors: "{{ pod_selector }}"
+      register: final_pod_info
+
+    - name: Count ready pods
+      set_fact:
+        ready_count: "{{ final_pod_info.resources | map(attribute='status.containerStatuses') | list | flatten | map(attribute='ready') | list | select('equalto', true) | list | length }}"
+
+    - name: Verify all pods are ready
+      assert:
+        that:
+          - ready_count == desired_replicas
