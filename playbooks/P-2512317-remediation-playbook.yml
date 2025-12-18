@@ -1,0 +1,52 @@
+- name: Fix BackOff event for redhat-marketplace-tq4fr
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Gather pods for deployment redhat-marketplace-tq4fr
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=redhat-marketplace-tq4fr
+      register: pod_info
+
+    - name: Delete pods with backoff
+      kubernetes.core.k8s:
+        state: absent
+        kind: Pod
+        namespace: openshift-marketplace
+        name: "{{ item.metadata.name }}"
+      loop: "{{ pod_info.resources }}"
+      when: >
+        (item.status.containerStatuses is defined) and
+        (item.status.containerStatuses | selectattr('state.waiting.reason', 'in', ['ImagePullBackOff', 'CrashLoopBackOff']) | list | length > 0)
+
+    - name: Wait for pods to be running
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=redhat-marketplace-tq4fr
+      register: pod_status
+      until: >
+        (pod_status.resources | map(attribute='status.phase') | list | unique | length == 1) and
+        (pod_status.resources | map(attribute='status.phase') | list | first == 'Running')
+      retries: 10
+      delay: 15
+
+    - name: Verify no backoff pods remain
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=redhat-marketplace-tq4fr
+      register: final_pods
+
+    - name: Fail if any pod still has backoff status
+      fail:
+        msg: "Some pods still have backoff status."
+      when: >
+        (final_pods.resources | selectattr('status.containerStatuses', 'defined') | map('extract', 'status.containerStatuses') | list | flatten | selectattr('state.waiting.reason', 'in', ['ImagePullBackOff', 'CrashLoopBackOff']) | list | length > 0)
