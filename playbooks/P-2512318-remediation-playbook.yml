@@ -1,0 +1,73 @@
+---
+- name: Fix Out-of-memory kills for ocs-metrics-exporter
+  hosts: localhost
+  gather_facts: no
+  tasks:
+
+    - name: Gather current deployment
+      kubernetes.core.k8s_info:
+        kind: Deployment
+        name: ocs-metrics-exporter
+        namespace: openshift-storage
+      register: deployment_info
+
+    - name: Set current memory limit
+      set_fact:
+        current_mem: "{{ deployment_info.resources[0].spec.template.spec.containers[0].resources.limits.memory | default('') }}"
+
+    - name: Extract numeric value from current memory limit
+      set_fact:
+        current_mem_num: "{{ current_mem | regex_replace('Mi', '') | int }}"
+
+    - name: Determine new memory limit
+      set_fact:
+        new_mem_limit: >-
+          {% if current_mem_num < 512 %}
+          512Mi
+          {% else %}
+          {{ current_mem }}
+          {% endif %}
+
+    - name: Update deployment with new memory limit
+      kubernetes.core.k8s:
+        definition:
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: ocs-metrics-exporter
+            namespace: openshift-storage
+          spec:
+            template:
+              spec:
+                containers:
+                  - name: ocs-metrics-exporter
+                    resources:
+                      limits:
+                        memory: "{{ new_mem_limit }}"
+      register: update_result
+
+    - name: Wait for deployment rollout to complete
+      kubernetes.core.k8s_info:
+        kind: Deployment
+        name: ocs-metrics-exporter
+        namespace: openshift-storage
+      register: rollout_status
+      until: rollout_status.resources[0].status.availableReplicas | int == rollout_status.resources[0].spec.replicas | int
+      retries: 30
+      delay: 10
+
+    - name: Gather pods for ocs-metrics-exporter
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: openshift-storage
+        label_selectors:
+          - app=ocs-metrics-exporter
+      register: pod_info
+
+    - name: Verify no OOMKilled containers
+      assert:
+        that:
+          - pod_info.resources | length > 0
+          - pod_info.resources | map(attribute='status.containerStatuses') | list | flatten | map(attribute='lastState.terminated.reason') | list | reject('equalto', 'OOMKilled') | list | length == pod_info.resources | map(attribute='status.containerStatuses') | list | flatten | length
+      fail_msg: "One or more pods have OOMKilled containers."
+      success_msg: "All pods are running without OOMKilled containers."
