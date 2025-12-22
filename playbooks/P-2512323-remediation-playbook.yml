@@ -1,0 +1,45 @@
+- name: Fix BackOff event for redhat-marketplace-qrz2z
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Gather pods for the deployment
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=redhat-marketplace-qrz2z
+      register: pod_info
+
+    - name: Delete all pods of the deployment
+      kubernetes.core.k8s:
+        state: absent
+        kind: Pod
+        namespace: openshift-marketplace
+        name: "{{ item }}"
+      loop: "{{ pod_info.resources | map(attribute='metadata.name') | list }}"
+
+    - name: Wait for pods to be running
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=redhat-marketplace-qrz2z
+      register: pod_status
+      until: pod_status.resources | map(attribute='status.phase') | list | unique | length == 1 and pod_status.resources | map(attribute='status.phase') | list | first == 'Running'
+      retries: 10
+      delay: 15
+
+    - name: Gather events in the namespace
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Event
+        namespace: openshift-marketplace
+      register: events
+
+    - name: Verify no BackOff events remain
+      assert:
+        that:
+          - events.resources | selectattr('reason', 'equalto', 'BackOff') | list | length == 0
+        fail_msg: "BackOff events still present for redhat-marketplace-qrz2z"
