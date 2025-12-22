@@ -1,0 +1,64 @@
+---
+- name: Fix Out-of-memory kills for ocs-metrics-exporter
+  hosts: localhost
+  gather_facts: no
+  tasks:
+
+    - name: Gather current deployment
+      kubernetes.core.k8s_info:
+        api_version: apps/v1
+        kind: Deployment
+        namespace: openshift-storage
+        name: ocs-metrics-exporter
+      register: deployment_info
+
+    - name: Set current memory request
+      set_fact:
+        current_memory_request: "{{ deployment_info.resources[0].spec.template.spec.containers[0].resources.requests.memory }}"
+
+    - name: Set new memory request
+      set_fact:
+        new_memory_request: "512Mi"
+
+    - name: Update deployment memory limits and requests
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: ocs-metrics-exporter
+            namespace: openshift-storage
+          spec:
+            template:
+              spec:
+                containers:
+                  - name: ocs-metrics-exporter
+                    resources:
+                      requests:
+                        memory: "{{ new_memory_request }}"
+                      limits:
+                        memory: "{{ new_memory_request }}"
+
+    - name: Wait for deployment rollout to complete
+      kubernetes.core.k8s_info:
+        api_version: apps/v1
+        kind: Deployment
+        namespace: openshift-storage
+        name: ocs-metrics-exporter
+      register: rollout_info
+      until: rollout_info.resources[0].status.updatedReplicas == rollout_info.resources[0].status.replicas
+      retries: 10
+      delay: 15
+
+    - name: Verify no OOMKilled events
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-storage
+        label_selectors:
+          - app=ocs-metrics-exporter
+      register: pod_info
+      failed_when: >
+        pod_info.resources | map(attribute='status.containerStatuses') | list | flatten |
+        map(attribute='state.terminated.reason') | list | select('equal', 'OOMKilled') | list | length > 0
