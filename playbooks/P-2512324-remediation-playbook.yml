@@ -1,0 +1,50 @@
+---
+- name: Fix BackOff event for redhat-operators-jrmzb workload
+  hosts: localhost
+  connection: local
+  collections:
+    - kubernetes.core
+
+  tasks:
+    - name: Gather all pods in the namespace
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-marketplace
+      register: all_pods
+
+    - name: Identify pods belonging to the workload
+      set_fact:
+        workload_pod_names: "{{ all_pods.resources | selectattr('metadata.name', 'search', 'redhat-operators-jrmzb') | map(attribute='metadata.name') | list }}"
+
+    - name: Delete pods with BackOff or CrashLoopBackOff status
+      kubernetes.core.k8s:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-marketplace
+        name: "{{ item }}"
+        state: absent
+      loop: "{{ workload_pod_names }}"
+      when: workload_pod_names | length > 0
+
+    - name: Wait for pods to be recreated and ready
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=redhat-operators-jrmzb
+      register: pod_status
+      until: >
+        pod_status.resources | selectattr('status.phase', 'equalto', 'Running') | list | length | int ==
+        workload_pod_names | length | int
+      retries: 30
+      delay: 10
+
+    - name: Verify all workload pods are running
+      assert:
+        that:
+          - pod_status.resources | selectattr('status.phase', 'equalto', 'Running') | list | length | int ==
+            workload_pod_names | length | int
+        fail_msg: "Some pods of redhat-operators-jrmzb are not running after remediation."
+        success_msg: "All pods of redhat-operators-jrmzb are running successfully."
