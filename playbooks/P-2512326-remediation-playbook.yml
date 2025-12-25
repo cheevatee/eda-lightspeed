@@ -1,0 +1,67 @@
+---
+- name: Fix low disk space on PVC
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Gather current PVC information
+      kubernetes.core.k8s_info:
+        kind: PersistentVolumeClaim
+        namespace: openshift-virtualization-os-images
+        name: prime-2ab2988e-fa03-4f0e-90bd-c85b7b199f3f
+      register: pvc_info
+
+    - name: Set current PVC capacity
+      set_fact:
+        current_capacity: "{{ pvc_info.resources[0].status.capacity.storage }}"
+
+    - name: Extract numeric value of current capacity
+      set_fact:
+        current_capacity_gi: "{{ current_capacity.split('Gi')[0] | int }}"
+
+    - name: Calculate new PVC size (increase by 10%)
+      set_fact:
+        new_capacity_gi: "{{ current_capacity_gi | int + (current_capacity_gi | int * 10 / 100) | int }}"
+
+    - name: Build new size string
+      set_fact:
+        new_capacity: "{{ new_capacity_gi }}Gi"
+
+    - name: Patch PVC with new size
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: PersistentVolumeClaim
+          metadata:
+            name: prime-2ab2988e-fa03-4f0e-90bd-c85b7b199f3f
+            namespace: openshift-virtualization-os-images
+          spec:
+            resources:
+              requests:
+                storage: "{{ new_capacity }}"
+        name: prime-2ab2988e-fa03-4f0e-90bd-c85b7b199f3f
+        namespace: openshift-virtualization-os-images
+
+    - name: Wait for PVC size to update
+      kubernetes.core.k8s_info:
+        kind: PersistentVolumeClaim
+        namespace: openshift-virtualization-os-images
+        name: prime-2ab2988e-fa03-4f0e-90bd-c85b7b199f3f
+      register: pvc_wait
+      until: pvc_wait.resources[0].status.capacity.storage == new_capacity
+      retries: 30
+      delay: 10
+
+    - name: Verify PVC size
+      kubernetes.core.k8s_info:
+        kind: PersistentVolumeClaim
+        namespace: openshift-virtualization-os-images
+        name: prime-2ab2988e-fa03-4f0e-90bd-c85b7b199f3f
+      register: pvc_verify
+
+    - name: Assert PVC size is updated
+      assert:
+        that:
+          - pvc_verify.resources[0].status.capacity.storage == new_capacity
+        fail_msg: "PVC size did not update to {{ new_capacity }}"
+        success_msg: "PVC size successfully updated to {{ new_capacity }}"
