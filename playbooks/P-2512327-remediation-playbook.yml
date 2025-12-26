@@ -1,0 +1,56 @@
+---
+- name: Fix BackOff event for certified-operators-889zv
+  hosts: localhost
+  gather_facts: no
+  tasks:
+
+    - name: Gather all pods for the workload
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=certified-operators-889zv
+      register: pod_info
+
+    - name: Identify pods with ImagePullBackOff or CrashLoopBackOff
+      set_fact:
+        problematic_pods: "{{ problematic_pods | default([]) + [item.metadata.name] }}"
+      loop: "{{ pod_info.resources }}"
+      when: >
+        item.status.containerStatuses is defined and
+        (item.status.containerStatuses | map(attribute='state.waiting.reason') | list | intersect(['ImagePullBackOff', 'CrashLoopBackOff'])) | length > 0
+
+    - name: Delete pods that are back‑offing
+      kubernetes.core.k8s:
+        state: absent
+        kind: Pod
+        namespace: openshift-marketplace
+        name: "{{ item }}"
+      loop: "{{ problematic_pods }}"
+      when: problematic_pods | length > 0
+
+    - name: Wait for all pods to reach Running state
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=certified-operators-889zv
+      register: pod_wait
+      until: >
+        pod_wait.resources | map(attribute='status.phase') | list | unique | length == 1 and
+        pod_wait.resources | map(attribute='status.phase') | list | first == 'Running'
+      retries: 10
+      delay: 15
+
+    - name: Verify no pods are in back‑off state
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=certified-operators-889zv
+      register: final_pods
+      failed_when: >
+        final_pods.resources | selectattr('status.containerStatuses', 'defined') | selectattr('status.containerStatuses', 'contains', {}) | list | length > 0
