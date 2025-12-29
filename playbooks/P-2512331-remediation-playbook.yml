@@ -1,0 +1,52 @@
+- name: Fix pods stuck in pending
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Gather pods in knative-serving with workload label
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: knative-serving
+        label_selectors:
+          - app=storage-version-migration-serving-serving-latest-1.37.0
+      register: pod_info
+
+    - name: Set fact for pending pods
+      set_fact:
+        pending_pods: "{{ pod_info.resources | selectattr('status.phase', 'equalto', 'Pending') | list }}"
+
+    - name: Set fact for pending pod names
+      set_fact:
+        pending_pod_names: "{{ pending_pods | map(attribute='metadata.name') | list }}"
+
+    - name: Delete pending pods
+      kubernetes.core.k8s:
+        state: absent
+        definition:
+          apiVersion: v1
+          kind: Pod
+          metadata:
+            name: "{{ item }}"
+            namespace: knative-serving
+      loop: "{{ pending_pod_names }}"
+      when: pending_pod_names | length > 0
+
+    - name: Wait for pods to be running
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: knative-serving
+        label_selectors:
+          - app=storage-version-migration-serving-serving-latest-1.37.0
+      register: pod_info_wait
+      until: pod_info_wait.resources | map(attribute='status.phase') | list | unique | length == 1 and pod_info_wait.resources | map(attribute='status.phase') | list | first == 'Running'
+      retries: 10
+      delay: 15
+
+    - name: Verify all pods are running
+      assert:
+        that:
+          - pod_info_wait.resources | map(attribute='status.phase') | list | unique | length == 1
+          - pod_info_wait.resources | map(attribute='status.phase') | list | first == 'Running'
+        fail_msg: "Pods are not all running after fix."
+        success_msg: "All pods are running."
