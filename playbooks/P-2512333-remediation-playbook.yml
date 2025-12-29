@@ -1,0 +1,54 @@
+- name: Fix BackOff event for redhat-operators-bkv54
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Gather pods for workload
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=redhat-operators-bkv54
+      register: pods_info
+
+    - name: Initialize pods_to_delete list
+      set_fact:
+        pods_to_delete: []
+
+    - name: Identify pods to delete
+      set_fact:
+        pods_to_delete: "{{ pods_to_delete + [item.metadata.name] }}"
+      loop: "{{ pods_info.resources }}"
+      when: >
+        (item.status.containerStatuses is defined) and
+        (item.status.containerStatuses | selectattr('state.waiting.reason', 'in', ['ImagePullBackOff', 'CrashLoopBackOff']) | list | length > 0)
+
+    - name: Delete problematic pods
+      kubernetes.core.k8s:
+        state: absent
+        kind: Pod
+        namespace: openshift-marketplace
+        name: "{{ item }}"
+      loop: "{{ pods_to_delete }}"
+
+    - name: Wait for pods to be running
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=redhat-operators-bkv54
+      register: pod_status
+      until: >
+        (pod_status.resources | map(attribute='status.phase') | list | unique | length == 1) and
+        (pod_status.resources | map(attribute='status.phase') | list | first == 'Running')
+      retries: 10
+      delay: 15
+
+    - name: Verify no pods in backoff
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=redhat-operators-bkv54
+      register: final_pods
+      failed_when: >
+        (final_pods.resources | selectattr('status.containerStatuses', 'defined') | selectattr('status.containerStatuses', 'selectattr', 'state.waiting.reason', 'in', ['ImagePullBackOff', 'CrashLoopBackOff']) | list | length) > 0
