@@ -1,0 +1,47 @@
+- name: Fix BackOff event for redhat-operators-6znhb
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Gather pods belonging to the workload
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-marketplace
+        field_selectors:
+          - metadata.ownerReferences[0].name=redhat-operators-6znhb
+      register: pod_info
+
+    - name: Delete pods of the workload
+      kubernetes.core.k8s:
+        state: absent
+        kind: Pod
+        namespace: openshift-marketplace
+        name: "{{ item }}"
+      loop: "{{ pod_info.resources | map(attribute='metadata.name') | list }}"
+
+    - name: Wait for pods to be Running
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-marketplace
+        field_selectors:
+          - metadata.ownerReferences[0].name=redhat-operators-6znhb
+      register: pod_info_wait
+      until: >
+        pod_info_wait.resources | length > 0 and
+        pod_info_wait.resources | map(attribute='status.phase') | list | unique | length == 1 and
+        pod_info_wait.resources[0].status.phase == 'Running'
+      retries: 10
+      delay: 15
+
+    - name: Verify no BackOff events remain
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Event
+        namespace: openshift-marketplace
+        field_selectors:
+          - involvedObject.kind=Pod
+          - involvedObject.ownerReferences[0].name=redhat-operators-6znhb
+      register: event_info
+      failed_when: >
+        event_info.resources | selectattr('reason', 'in', ['BackOff', 'ImagePullBackOff', 'CrashLoopBackOff']) | list | length > 0
