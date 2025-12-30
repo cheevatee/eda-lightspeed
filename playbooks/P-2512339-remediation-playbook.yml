@@ -1,0 +1,75 @@
+---
+- name: Fix Out-of-memory kills for ocs-metrics-exporter
+  hosts: localhost
+  gather_facts: no
+  collections:
+    - kubernetes.core
+
+  tasks:
+    - name: Gather current Deployment
+      kubernetes.core.k8s_info:
+        kind: Deployment
+        name: ocs-metrics-exporter
+        namespace: openshift-storage
+      register: deployment_info
+
+    - name: Set current memory limit
+      set_fact:
+        current_limit: "{{ deployment_info.resources[0].spec.template.spec.containers[0].resources.limits.memory }}"
+
+    - name: Parse current memory value (Mi)
+      set_fact:
+        current_limit_value: "{{ current_limit | regex_replace('Mi', '') | int }}"
+
+    - name: Calculate new memory limit (increase by 100Mi)
+      set_fact:
+        new_limit_value: "{{ current_limit_value | int + 100 }}"
+
+    - name: Build new memory limit string
+      set_fact:
+        new_limit: "{{ new_limit_value }}Mi"
+
+    - name: Update Deployment with new memory limit
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          metadata:
+            name: ocs-metrics-exporter
+            namespace: openshift-storage
+          spec:
+            template:
+              spec:
+                containers:
+                  - name: ocs-metrics-exporter
+                    resources:
+                      limits:
+                        memory: "{{ new_limit }}"
+
+    - name: Wait for Deployment rollout to complete
+      kubernetes.core.k8s_info:
+        kind: Deployment
+        name: ocs-metrics-exporter
+        namespace: openshift-storage
+      register: rollout_info
+      until: >
+        rollout_info.resources[0].status.conditions
+        | selectattr('type', 'equalto', 'Available')
+        | selectattr('status', 'equalto', 'True')
+        | list | length > 0
+      retries: 30
+      delay: 10
+
+    - name: Gather pods for verification
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: openshift-storage
+        label_selectors:
+          - app=ocs-metrics-exporter
+      register: pod_info
+
+    - name: Verify no OOMKilled containers
+      assert:
+        that:
+          - pod_info.resources | map(attribute='status.containerStatuses') | list | flatten | map(attribute='state.terminated.reason') | list | reject('equalto', 'OOMKilled') | list | length == pod_info.resources | map(attribute='status.containerStatuses') | list | flatten | length
+        fail_msg: "Some containers were OOMKilled after the fix."
+        success_msg: "All containers are running without OOMKilled events."
