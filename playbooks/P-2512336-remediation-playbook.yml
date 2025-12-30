@@ -1,0 +1,58 @@
+---
+- name: Fix BackOff event for certified-operators-jlbj7
+  hosts: localhost
+  gather_facts: no
+  collections:
+    - kubernetes.core
+
+  tasks:
+    - name: Gather all pods in openshift-marketplace
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: openshift-marketplace
+      register: pod_info
+
+    - name: Set fact for pods belonging to certified-operators-jlbj7
+      set_fact:
+        target_pods: "{{ pod_info.resources | selectattr('metadata.name', 'search', 'certified-operators-jlbj7') | list }}"
+
+    - name: Delete pods with ImagePullBackOff or CrashLoopBackOff
+      kubernetes.core.k8s:
+        state: absent
+        kind: Pod
+        namespace: openshift-marketplace
+        name: "{{ item.metadata.name }}"
+      loop: "{{ target_pods }}"
+      when: >
+        (item.status.containerStatuses | selectattr('state.waiting.reason', 'in', ['ImagePullBackOff', 'CrashLoopBackOff']) | list | length) > 0
+
+    - name: Wait for all target pods to be Running
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: openshift-marketplace
+        name: "{{ item.metadata.name }}"
+      loop: "{{ target_pods }}"
+      register: pod_status
+      until: >
+        (pod_status.resources[0].status.phase | lower) == 'running'
+      retries: 10
+      delay: 15
+
+    - name: Verify no pods are in BackOff or CrashLoopBackOff
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: openshift-marketplace
+      register: final_pod_info
+
+    - name: Set fact for pods still in problematic state
+      set_fact:
+        problematic_pods: "{{ final_pod_info.resources | selectattr('status.containerStatuses', 'defined') | selectattr('status.containerStatuses', 'search', 'ImagePullBackOff') | list }}"
+
+    - name: Fail if any pods remain in BackOff or CrashLoopBackOff
+      fail:
+        msg: "Some pods are still in ImagePullBackOff or CrashLoopBackOff state."
+      when: problematic_pods | length > 0
+
+    - name: Success message
+      debug:
+        msg: "All pods for certified-operators-jlbj7 are running and no BackOff events detected."
