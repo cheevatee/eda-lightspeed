@@ -1,0 +1,53 @@
+---
+- name: Fix BackOff event for redhat-operators-jbgbl
+  hosts: localhost
+  gather_facts: no
+  collections:
+    - kubernetes.core
+
+  tasks:
+    - name: Gather all pods for the workload
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=redhat-operators-jbgbl
+      register: pod_info
+
+    - name: Identify pods with BackOff status
+      set_fact:
+        backoff_pods: "{{ pod_info.resources | selectattr('status.phase', 'equalto', 'Pending') | selectattr('status.containerStatuses', 'defined') | selectattr('status.containerStatuses', 'contains', 'ImagePullBackOff') | map(attribute='metadata.name') | list }}"
+
+    - name: Delete pods with BackOff status
+      kubernetes.core.k8s:
+        state: absent
+        kind: Pod
+        namespace: openshift-marketplace
+        name: "{{ item }}"
+      loop: "{{ backoff_pods }}"
+      when: backoff_pods | length > 0
+
+    - name: Wait for all pods to be Running and ready
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=redhat-operators-jbgbl
+      register: pod_status
+      until: pod_status.resources | map(attribute='status.phase') | list | unique | length == 1 and pod_status.resources | map(attribute='status.phase') | list | first == 'Running' and pod_status.resources | map(attribute='status.containerStatuses') | map('selectattr', 'ready', 'equalto', true) | list | flatten | length == pod_status.resources | length
+      retries: 30
+      delay: 10
+
+    - name: Verify no pods remain in BackOff state
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=redhat-operators-jbgbl
+      register: final_pods
+
+    - name: Fail if any pod is still in BackOff
+      fail:
+        msg: "Some pods are still in BackOff state."
+      when: >
+        final_pods.resources | selectattr('status.phase', 'equalto', 'Pending') | selectattr('status.containerStatuses', 'defined') | selectattr('status.containerStatuses', 'contains', 'ImagePullBackOff') | list | length > 0
