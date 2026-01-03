@@ -1,0 +1,51 @@
+---
+- name: Fix BackOff event for redhat-marketplace-zr5sn
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Gather all pods in the namespace
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: openshift-marketplace
+      register: pod_info
+
+    - name: Filter pods belonging to the workload
+      set_fact:
+        target_pods: "{{ pod_info.resources | selectattr('metadata.name', 'search', 'redhat-marketplace-zr5sn') | list }}"
+
+    - name: Delete pods that are in a backoff state
+      kubernetes.core.k8s:
+        state: absent
+        kind: Pod
+        namespace: openshift-marketplace
+        name: "{{ item.metadata.name }}"
+      loop: "{{ target_pods }}"
+      when: >
+        (item.status.phase == 'Failed' or item.status.phase == 'Pending') or
+        (item.status.containerStatuses | selectattr('state.waiting.reason', 'defined') | selectattr('state.waiting.reason', 'in', ['ImagePullBackOff', 'CrashLoopBackOff']) | list | length > 0)
+
+    - name: Wait for all workload pods to reach Running state
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: openshift-marketplace
+      register: pod_wait
+      until: >
+        (pod_wait.resources | map(attribute='status.phase') | list | select('equalto', 'Running') | list | length) ==
+        (target_pods | length)
+      retries: 10
+      delay: 15
+
+    - name: Verify no pods remain in backoff states
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: openshift-marketplace
+      register: final_pods
+
+    - name: Identify any pods still in backoff
+      set_fact:
+        backoff_pods: "{{ final_pods.resources | selectattr('status.containerStatuses', 'defined') | selectattr('status.containerStatuses', 'search', 'ImagePullBackOff') | list }}"
+
+    - name: Fail if backoff pods are still present
+      fail:
+        msg: "BackOff still present in pods: {{ backoff_pods | map(attribute='metadata.name') | list }}"
+      when: (backoff_pods | length) > 0
