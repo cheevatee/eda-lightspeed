@@ -1,0 +1,54 @@
+- name: Fix pods stuck in pending
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Gather pods in knative-serving
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: knative-serving
+      register: pod_info
+
+    - name: Set pending pods list
+      set_fact:
+        pending_pods: "{{ pod_info.resources | selectattr('status.phase', 'equalto', 'Pending') | map(attribute='metadata.name') | list }}"
+
+    - name: Check if there are pending pods
+      debug:
+        msg: "No pending pods found."
+      when: (pending_pods | length | int) == 0
+
+    - name: Delete pending pods
+      kubernetes.core.k8s:
+        state: absent
+        kind: Pod
+        namespace: knative-serving
+        name: "{{ item }}"
+      loop: "{{ pending_pods }}"
+      when: (pending_pods | length | int) > 0
+
+    - name: Wait for pods to be running
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: knative-serving
+      register: pod_info_after
+      until: (pod_info_after.resources | selectattr('status.phase', 'equalto', 'Running') | list | length | int) == (pod_info.resources | length | int)
+      retries: 10
+      delay: 15
+
+    - name: Verify no pending pods
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: knative-serving
+      register: final_pod_info
+
+    - name: Fail if any pod still pending
+      fail:
+        msg: "Some pods are still pending after fix."
+      when: (final_pod_info.resources | selectattr('status.phase', 'equalto', 'Pending') | list | length | int) > 0
+
+    - name: Success message
+      debug:
+        msg: "All pods are running. Issue resolved."
