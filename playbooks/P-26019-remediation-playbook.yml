@@ -1,0 +1,63 @@
+---
+- name: Fix and verify BackOff event for certified-operators-p6d2p
+  hosts: localhost
+  gather_facts: no
+  tasks:
+
+    - name: Gather pods for workload
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=certified-operators-p6d2p
+      register: pod_info
+
+    - name: Set pod names list
+      set_fact:
+        pod_names: "{{ pod_info.resources | map(attribute='metadata.name') | list }}"
+
+    - name: Identify pods with BackOff
+      set_fact:
+        backoff_pods: "{{ backoff_pods | default([]) + [item.metadata.name] }}"
+      loop: "{{ pod_info.resources }}"
+      when:
+        - item.status.containerStatuses is defined
+        - (item.status.containerStatuses | selectattr('state.waiting', 'defined') | selectattr('state.waiting.reason', 'equalto', 'BackOff') | list | length) > 0
+
+    - name: Delete pods with BackOff
+      kubernetes.core.k8s:
+        state: absent
+        kind: Pod
+        namespace: openshift-marketplace
+        name: "{{ item }}"
+      loop: "{{ backoff_pods }}"
+      when: backoff_pods | length > 0
+
+    - name: Wait for pods to be running
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-marketplace
+        name: "{{ item }}"
+      register: pod_status
+      loop: "{{ pod_names }}"
+      until: pod_status.resources[0].status.phase == 'Running'
+      retries: 10
+      delay: 15
+
+    - name: Gather events for workload
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Event
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=certified-operators-p6d2p
+      register: event_info
+
+    - name: Verify no BackOff events
+      assert:
+        that:
+          - event_info.resources | map(attribute='reason') | list | reject('equalto', 'BackOff') | list | length == event_info.resources | length
+        fail_msg: "BackOff events still present"
+        success_msg: "No BackOff events found"
