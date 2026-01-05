@@ -1,0 +1,56 @@
+- name: Fix BackOff event for redhat-operators-m8dxx
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Gather pods for workload
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=redhat-operators-m8dxx
+      register: pod_info
+
+    - name: Gather backoff pod names
+      set_fact:
+        backoff_pod_names: "{{ backoff_pod_names | default([]) + [item.metadata.name] }}"
+      loop: "{{ pod_info.resources }}"
+      when: >
+        (item.status.containerStatuses | selectattr('state.waiting.reason', 'in', ['ImagePullBackOff', 'CrashLoopBackOff']) | list | length) > 0
+
+    - name: Delete backoff pods
+      kubernetes.core.k8s:
+        state: absent
+        kind: Pod
+        namespace: openshift-marketplace
+        name: "{{ item }}"
+      loop: "{{ backoff_pod_names }}"
+
+    - name: Wait for pods to be running
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=redhat-operators-m8dxx
+      register: new_pod_info
+      until: >
+        (new_pod_info.resources | map(attribute='status.phase') | list | unique | length) == 1 and
+        (new_pod_info.resources | map(attribute='status.phase') | list | first) == 'Running'
+      retries: 10
+      delay: 10
+
+    - name: Verify no pods in backoff
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=redhat-operators-m8dxx
+      register: final_pod_info
+
+    - name: Fail if any pod still in backoff
+      fail:
+        msg: "Some pods still in backoff state."
+      when: >
+        (final_pod_info.resources | selectattr('status.containerStatuses', 'defined') | selectattr('status.containerStatuses', 'selectattr', 'state.waiting.reason', 'in', ['ImagePullBackOff', 'CrashLoopBackOff']) | list | length) > 0
