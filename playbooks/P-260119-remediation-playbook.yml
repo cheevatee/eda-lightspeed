@@ -1,0 +1,51 @@
+- name: Fix BackOff event for redhat-operators-wmqql
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Gather pods for workload
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=redhat-operators-wmqql
+      register: pod_info
+
+    - name: Identify pods with backoff
+      set_fact:
+        backoff_pods: "{{ backoff_pods | default([]) + [item.metadata.name] }}"
+      loop: "{{ pod_info.resources }}"
+      when: >
+        (item.status.containerStatuses is defined) and
+        (item.status.containerStatuses | selectattr('state.waiting.reason', 'in', ['ImagePullBackOff', 'CrashLoopBackOff']) | list | length > 0)
+
+    - name: Delete pods with backoff
+      kubernetes.core.k8s:
+        state: absent
+        kind: Pod
+        namespace: openshift-marketplace
+        name: "{{ item }}"
+      loop: "{{ backoff_pods }}"
+      when: backoff_pods | length > 0
+
+    - name: Wait for pods to be running
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=redhat-operators-wmqql
+      register: pod_status
+      until: >
+        (pod_status.resources | map(attribute='status.phase') | list | unique | length | int == 1) and
+        (pod_status.resources | map(attribute='status.phase') | list | first | string == 'Running')
+      retries: 10
+      delay: 15
+
+    - name: Verify all pods are running
+      assert:
+        that:
+          - pod_status.resources | map(attribute='status.phase') | list | unique | length | int == 1
+          - pod_status.resources | map(attribute='status.phase') | list | first | string == 'Running'
+        fail_msg: "Not all pods are running after fix."
+        success_msg: "All pods are running."
