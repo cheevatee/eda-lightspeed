@@ -1,0 +1,52 @@
+---
+- name: Fix BackOff event for redhat-operators-vgxg4 workload
+  hosts: localhost
+  gather_facts: no
+  collections:
+    - kubernetes.core
+
+  tasks:
+    - name: Gather current pods for the workload
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=redhat-operators-vgxg4
+      register: pod_info
+
+    - name: Set list of pods in BackOff or CrashLoopBackOff
+      set_fact:
+        problematic_pods: "{{ pod_info.resources | selectattr('status.phase', 'equalto', 'Running') | list }}"
+
+    - name: Delete problematic pods
+      kubernetes.core.k8s:
+        state: absent
+        kind: Pod
+        namespace: openshift-marketplace
+        name: "{{ item.metadata.name }}"
+      loop: "{{ pod_info.resources }}"
+      when: item.status.phase == 'Running' and
+            (item.status.containerStatuses | selectattr('state.waiting', 'defined') | map(attribute='state.waiting.reason') | list | intersect(['ImagePullBackOff', 'CrashLoopBackOff'])) | length > 0
+
+    - name: Wait for pods to be recreated and running
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=redhat-operators-vgxg4
+      register: recreated_pods
+      until: recreated_pods.resources | map(attribute='status.phase') | list | unique | length == 1 and
+             recreated_pods.resources | map(attribute='status.phase') | list | first == 'Running'
+      retries: 30
+      delay: 10
+
+    - name: Verify no pods are in BackOff or CrashLoopBackOff
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=redhat-operators-vgxg4
+      register: final_pods
+      failed_when: >
+        (final_pods.resources | selectattr('status.phase', 'equalto', 'Running') | list | length) == 0 or
+        (final_pods.resources | selectattr('status.containerStatuses', 'defined') | map(attribute='containerStatuses') | flatten | selectattr('state.waiting', 'defined') | map(attribute='state.waiting.reason') | list | intersect(['ImagePullBackOff', 'CrashLoopBackOff'])) | length > 0
