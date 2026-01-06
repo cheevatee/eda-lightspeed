@@ -1,0 +1,65 @@
+- name: Fix BackOff event for redhat-marketplace-86mfd
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Gather current pods for deployment
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=redhat-marketplace-86mfd
+      register: pod_info
+
+    - name: Identify pods with BackOff
+      set_fact:
+        backoff_pods: "{{ backoff_pods | default([]) + [item.metadata.name] }}"
+      loop: "{{ pod_info.resources }}"
+      when: >
+        item.status.containerStatuses is defined and
+        (item.status.containerStatuses | map(attribute='state.waiting.reason') | list | join(',') | regex_search('ImagePullBackOff|CrashLoopBackOff'))
+
+    - name: Delete problematic pods
+      kubernetes.core.k8s:
+        state: absent
+        kind: Pod
+        namespace: openshift-marketplace
+        name: "{{ item }}"
+      loop: "{{ backoff_pods }}"
+      when: backoff_pods is defined and backoff_pods | length > 0
+
+    - name: Wait for pods to be Running
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=redhat-marketplace-86mfd
+      register: pod_info_wait
+      until: >
+        pod_info_wait.resources | map(attribute='status.phase') | list | unique | length == 1 and
+        pod_info_wait.resources | map(attribute='status.phase') | list | first == 'Running'
+      retries: 30
+      delay: 10
+
+    - name: Verify no pods in BackOff
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=redhat-marketplace-86mfd
+      register: final_pod_info
+
+    - name: Check for remaining BackOff pods
+      set_fact:
+        remaining_backoff: "{{ remaining_backoff | default([]) + [item.metadata.name] }}"
+      loop: "{{ final_pod_info.resources }}"
+      when: >
+        item.status.containerStatuses is defined and
+        (item.status.containerStatuses | map(attribute='state.waiting.reason') | list | join(',') | regex_search('ImagePullBackOff|CrashLoopBackOff'))
+
+    - name: Fail if any pods still in BackOff
+      fail:
+        msg: "Pods still in BackOff: {{ remaining_backoff }}"
+      when: remaining_backoff is defined and remaining_backoff | length > 0
