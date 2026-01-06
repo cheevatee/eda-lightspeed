@@ -1,0 +1,66 @@
+- name: Fix BackOff event for redhat-operators-f54vp
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Gather pods for deployment
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        field_selectors:
+          - metadata.ownerReferences.kind=Deployment
+          - metadata.ownerReferences.name=redhat-operators-f54vp
+          - metadata.namespace=openshift-marketplace
+      register: pod_info
+
+    - name: Identify pods with backoff
+      set_fact:
+        backoff_pods: "{{ backoff_pods | default([]) + [item.metadata.name] }}"
+      loop: "{{ pod_info.resources }}"
+      when: >
+        (item.status.containerStatuses | selectattr('state.waiting', 'defined') | selectattr('state.waiting.reason', 'equalto', 'ImagePullBackOff') | list | length > 0) or
+        (item.status.containerStatuses | selectattr('state.waiting', 'defined') | selectattr('state.waiting.reason', 'equalto', 'CrashLoopBackOff') | list | length > 0)
+
+    - name: Delete pods with backoff
+      kubernetes.core.k8s:
+        state: absent
+        kind: Pod
+        name: "{{ item }}"
+        namespace: openshift-marketplace
+      loop: "{{ backoff_pods }}"
+      when: backoff_pods | length > 0
+
+    - name: Wait for pods to be running
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        name: "{{ item }}"
+        namespace: openshift-marketplace
+      register: pod_status
+      until: pod_status.resources[0].status.phase == 'Running'
+      retries: 10
+      delay: 10
+      loop: "{{ backoff_pods }}"
+      when: backoff_pods | length > 0
+
+    - name: Gather final pod status
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        field_selectors:
+          - metadata.ownerReferences.kind=Deployment
+          - metadata.ownerReferences.name=redhat-operators-f54vp
+          - metadata.namespace=openshift-marketplace
+      register: final_pod_info
+
+    - name: Check for pods still in backoff
+      set_fact:
+        still_backoff: "{{ still_backoff | default([]) + [item.metadata.name] }}"
+      loop: "{{ final_pod_info.resources }}"
+      when: >
+        (item.status.containerStatuses | selectattr('state.waiting', 'defined') | selectattr('state.waiting.reason', 'equalto', 'ImagePullBackOff') | list | length > 0) or
+        (item.status.containerStatuses | selectattr('state.waiting', 'defined') | selectattr('state.waiting.reason', 'equalto', 'CrashLoopBackOff') | list | length > 0)
+
+    - name: Fail if pods still in backoff
+      fail:
+        msg: "Pods still in backoff: {{ still_backoff }}"
+      when: still_backoff | length > 0
