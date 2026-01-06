@@ -1,0 +1,79 @@
+- name: Fix BackOff event for redhat-marketplace-vfq69
+  hosts: localhost
+  gather_facts: yes
+  tasks:
+    - name: Gather pods for workload
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selector: app=redhat-marketplace-vfq69
+      register: pod_info
+
+    - name: Identify pods with backoff
+      set_fact:
+        backoff_pod_names: "{{ backoff_pod_names | default([]) + [item.metadata.name] }}"
+      loop: "{{ pod_info.resources }}"
+      when: >
+        (item.status.containerStatuses | selectattr('state.waiting', 'defined') | map(attribute='state.waiting.reason') | list | intersect(['ImagePullBackOff', 'CrashLoopBackOff'])) | length > 0
+
+    - name: Delete pods with backoff
+      kubernetes.core.k8s:
+        state: absent
+        kind: Pod
+        namespace: openshift-marketplace
+        name: "{{ item }}"
+      loop: "{{ backoff_pod_names }}"
+      when: backoff_pod_names is defined
+
+    - name: Identify pods with CrashLoopBackOff
+      set_fact:
+        crash_loop_pod_names: "{{ crash_loop_pod_names | default([]) + [item.metadata.name] }}"
+      loop: "{{ pod_info.resources }}"
+      when: >
+        (item.status.containerStatuses | selectattr('state.waiting', 'defined') | map(attribute='state.waiting.reason') | list | intersect(['CrashLoopBackOff'])) | length > 0
+
+    - name: Gather deployment
+      kubernetes.core.k8s_info:
+        kind: Deployment
+        namespace: openshift-marketplace
+        name: redhat-marketplace-vfq69
+      register: deployment_info
+      when: crash_loop_pod_names is defined
+
+    - name: Patch deployment to trigger rollout
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: redhat-marketplace-vfq69
+            namespace: openshift-marketplace
+            annotations:
+              redeploy-timestamp: "{{ ansible_date_time.iso8601 }}"
+          spec: "{{ deployment_info.resources[0].spec }}"
+      when: crash_loop_pod_names is defined
+
+    - name: Wait for deployment rollout
+      kubernetes.core.k8s_info:
+        kind: Deployment
+        namespace: openshift-marketplace
+        name: redhat-marketplace-vfq69
+      register: rollout_info
+      until: rollout_info.resources[0].status.availableReplicas | int == rollout_info.resources[0].status.replicas | int
+      retries: 10
+      delay: 15
+      when: crash_loop_pod_names is defined
+
+    - name: Verify no pods in backoff
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selector: app=redhat-marketplace-vfq69
+      register: final_pod_info
+
+    - name: Fail if any pod still has backoff status
+      fail:
+        msg: "Some pods still have backoff status."
+      when: >
+        (final_pod_info.resources | selectattr('status.containerStatuses', 'defined') | map('json_query', "containerStatuses[*].state.waiting.reason") | list | intersect(['ImagePullBackOff', 'CrashLoopBackOff'])) | length > 0
