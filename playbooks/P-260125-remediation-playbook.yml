@@ -1,0 +1,47 @@
+- name: Fix BackOff event for workload redhat-marketplace-wg297
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Gather all pods for the workload
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=redhat-marketplace-wg297
+      register: pod_info
+
+    - name: Identify pods in ImagePullBackOff or CrashLoopBackOff
+      set_fact:
+        backoff_pods: "{{ backoff_pods | default([]) + [item.metadata.name] }}"
+      loop: "{{ pod_info.resources }}"
+      when: >
+        (item.status.containerStatuses | selectattr('state.waiting.reason', 'in', ['ImagePullBackOff', 'CrashLoopBackOff']) | list | length) > 0
+
+    - name: Delete pods that are backing off
+      kubernetes.core.k8s:
+        state: absent
+        kind: Pod
+        namespace: openshift-marketplace
+        name: "{{ item }}"
+      loop: "{{ backoff_pods }}"
+
+    - name: Wait for all pods to reach Running state
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=redhat-marketplace-wg297
+      register: pod_status
+      until: >
+        pod_status.resources | map(attribute='status.phase') | list | unique | length == 1 and
+        pod_status.resources | map(attribute='status.phase') | list | first == 'Running'
+      retries: 10
+      delay: 15
+
+    - name: Verify that no pods are in backoff or crash loop
+      assert:
+        that:
+          - pod_status.resources | map(attribute='status.phase') | list | unique | length == 1
+          - pod_status.resources | map(attribute='status.phase') | list | first == 'Running'
