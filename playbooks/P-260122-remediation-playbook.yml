@@ -1,0 +1,81 @@
+---
+- name: Fix BackOff event for redhat-marketplace-xsjhs
+  hosts: localhost
+  gather_facts: no
+  tasks:
+
+    - name: Gather current pods for the workload
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selector: app=redhat-marketplace-xsjhs
+      register: pods
+
+    - name: Initialize backoff pods list
+      set_fact:
+        backoff_pods: []
+
+    - name: Build list of pods in ImagePullBackOff or CrashLoopBackOff
+      set_fact:
+        backoff_pods: "{{ backoff_pods + [item.metadata.name] }}"
+      loop: "{{ pods.resources }}"
+      when: >
+        item.status.containerStatuses is defined and
+        (item.status.containerStatuses | selectattr('state.waiting.reason', 'in', ['ImagePullBackOff', 'CrashLoopBackOff']) | list | length) > 0
+
+    - name: Delete pods that are back‑offing
+      kubernetes.core.k8s:
+        state: absent
+        kind: Pod
+        namespace: openshift-marketplace
+        name: "{{ item }}"
+      loop: "{{ backoff_pods }}"
+      when: backoff_pods | length > 0
+
+    - name: Wait for all pods to recover
+      block:
+        - name: Gather pods again
+          kubernetes.core.k8s_info:
+            kind: Pod
+            namespace: openshift-marketplace
+            label_selector: app=redhat-marketplace-xsjhs
+          register: pods
+
+        - name: Reset backoff pods list
+          set_fact:
+            backoff_pods: []
+
+        - name: Rebuild backoff pods list
+          set_fact:
+            backoff_pods: "{{ backoff_pods + [item.metadata.name] }}"
+          loop: "{{ pods.resources }}"
+          when: >
+            item.status.containerStatuses is defined and
+            (item.status.containerStatuses | selectattr('state.waiting.reason', 'in', ['ImagePullBackOff', 'CrashLoopBackOff']) | list | length) > 0
+      until: backoff_pods | length == 0
+      retries: 10
+      delay: 30
+
+    - name: Gather pods after fix
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selector: app=redhat-marketplace-xsjhs
+      register: final_pods
+
+    - name: Reset final backoff pods list
+      set_fact:
+        backoff_pods: []
+
+    - name: Build final backoff pods list
+      set_fact:
+        backoff_pods: "{{ backoff_pods + [item.metadata.name] }}"
+      loop: "{{ final_pods.resources }}"
+      when: >
+        item.status.containerStatuses is defined and
+        (item.status.containerStatuses | selectattr('state.waiting.reason', 'in', ['ImagePullBackOff', 'CrashLoopBackOff']) | list | length) > 0
+
+    - name: Verify no backoff pods remain
+      fail:
+        msg: "Backoff pods still present: {{ backoff_pods }}"
+      when: backoff_pods | length > 0
