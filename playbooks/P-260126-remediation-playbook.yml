@@ -1,0 +1,59 @@
+---
+- name: Fix and verify low disk space on PVC
+  hosts: localhost
+  gather_facts: no
+  collections:
+    - kubernetes.core
+
+  tasks:
+    - name: Gather current PVC information
+      kubernetes.core.k8s_info:
+        kind: PersistentVolumeClaim
+        namespace: openshift-virtualization-os-images
+        name: prime-368948d1-87a2-44f3-98f8-8dc4c0ceb566
+      register: pvc_info
+
+    - name: Extract current storage size
+      set_fact:
+        current_size_gi: "{{ pvc_info.resources[0].spec.resources.requests.storage | regex_replace('Gi', '') | int }}"
+
+    - name: Calculate new storage size (increase by 10Gi)
+      set_fact:
+        new_size_gi: "{{ current_size_gi | int + 10 }}"
+
+    - name: Update PVC with new storage size
+      kubernetes.core.k8s:
+        definition:
+          apiVersion: v1
+          kind: PersistentVolumeClaim
+          metadata:
+            name: prime-368948d1-87a2-44f3-98f8-8dc4c0ceb566
+            namespace: openshift-virtualization-os-images
+          spec:
+            resources:
+              requests:
+                storage: "{{ new_size_gi }}Gi"
+
+    - name: Wait for PVC resize to complete
+      kubernetes.core.k8s_info:
+        kind: PersistentVolumeClaim
+        namespace: openshift-virtualization-os-images
+        name: prime-368948d1-87a2-44f3-98f8-8dc4c0ceb566
+      register: pvc_resize_status
+      until: pvc_resize_status.resources[0].status.capacity.storage == (new_size_gi | string + 'Gi')
+      retries: 30
+      delay: 10
+
+    - name: Verify PVC has been resized successfully
+      kubernetes.core.k8s_info:
+        kind: PersistentVolumeClaim
+        namespace: openshift-virtualization-os-images
+        name: prime-368948d1-87a2-44f3-98f8-8dc4c0ceb566
+      register: pvc_final_status
+
+    - name: Assert PVC capacity matches expected size
+      assert:
+        that:
+          - pvc_final_status.resources[0].status.capacity.storage == (new_size_gi | string + 'Gi')
+        fail_msg: "PVC resize failed: expected {{ new_size_gi }}Gi, found {{ pvc_final_status.resources[0].status.capacity.storage }}"
+        success_msg: "PVC successfully resized to {{ new_size_gi }}Gi"
