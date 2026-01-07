@@ -1,0 +1,39 @@
+---
+- name: Fix and verify pods stuck in pending
+  hosts: localhost
+  gather_facts: no
+  tasks:
+
+    - name: Gather pending pods for the affected workload
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: knative-serving
+        label_selectors: app=storage-version-migration-serving-serving-latest-1.37.0
+      register: pod_info
+
+    - name: Set fact for pending pod names
+      set_fact:
+        pending_pod_names: "{{ pod_info.resources | map(attribute='metadata.name') | list }}"
+
+    - name: Delete pending pods to trigger rescheduling
+      kubernetes.core.k8s:
+        state: absent
+        kind: Pod
+        name: "{{ item }}"
+        namespace: knative-serving
+      loop: "{{ pending_pod_names }}"
+      when: pending_pod_names | length > 0
+
+    - name: Wait for all pods to reach Running state
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: knative-serving
+        label_selectors: app=storage-version-migration-serving-serving-latest-1.37.0
+      register: pod_status
+      until: (pod_status.resources | selectattr('status.phase', 'equalto', 'Running') | list | length | int) == (pod_status.resources | length | int)
+      retries: 10
+      delay: 15
+
+    - name: Verify all pods are running
+      debug:
+        msg: "All pods for storage-version-migration-serving-serving-latest-1.37.0 are running."
