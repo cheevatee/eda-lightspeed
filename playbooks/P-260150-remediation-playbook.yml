@@ -1,0 +1,48 @@
+- name: Fix BackOff event for community-operators-8q5w9
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Gather pods for workload
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=community-operators-8q5w9
+      register: pod_info
+
+    - name: Set pod list
+      set_fact:
+        pod_list: "{{ pod_info.resources }}"
+
+    - name: Delete pods that are not running
+      kubernetes.core.k8s:
+        state: absent
+        definition:
+          apiVersion: v1
+          kind: Pod
+          metadata:
+            name: "{{ item.metadata.name }}"
+            namespace: openshift-marketplace
+      loop: "{{ pod_list }}"
+      when: item.status.phase != 'Running'
+
+    - name: Wait for pods to be running
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=community-operators-8q5w9
+      register: pod_status
+      until: pod_status.resources | map(attribute='status.phase') | list | unique | length == 1 and pod_status.resources | map(attribute='status.phase') | list | first == 'Running'
+      retries: 30
+      delay: 10
+
+    - name: Verify all pods are running
+      assert:
+        that:
+          - pod_status.resources | map(attribute='status.phase') | list | unique | length == 1
+          - pod_status.resources | map(attribute='status.phase') | list | first == 'Running'
+        fail_msg: Pods are not running after the fix
+        success_msg: All pods are running successfully
