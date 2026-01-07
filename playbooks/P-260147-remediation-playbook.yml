@@ -1,0 +1,54 @@
+- name: Fix BackOff event for community-operators-pgrqw
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Gather pods for the workload
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=community-operators-pgrqw
+      register: pod_info
+
+    - name: Set pod names
+      set_fact:
+        pod_names: "{{ pod_info.resources | map(attribute='metadata.name') | list }}"
+
+    - name: Delete pods to trigger restart
+      kubernetes.core.k8s:
+        state: absent
+        definition:
+          apiVersion: v1
+          kind: Pod
+          metadata:
+            name: "{{ item }}"
+            namespace: openshift-marketplace
+      loop: "{{ pod_names }}"
+
+    - name: Wait for pods to be running
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=community-operators-pgrqw
+      register: pod_status
+      until: >
+        (pod_status.resources | map(attribute='status.phase') | list | unique | length == 1) and
+        (pod_status.resources | map(attribute='status.phase') | list | first == 'Running')
+      retries: 10
+      delay: 15
+
+    - name: Verify pods are running and not in backoff
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=community-operators-pgrqw
+      register: final_pods
+      failed_when: >
+        (final_pods.resources | map(attribute='status.phase') | list | unique | length != 1) or
+        (final_pods.resources | map(attribute='status.phase') | list | first != 'Running') or
+        (final_pods.resources | selectattr('status.containerStatuses', 'defined') | map(attribute='containerStatuses') | list | flatten | selectattr('state.waiting', 'defined') | map(attribute='state.waiting.reason') | list | intersect(['ImagePullBackOff', 'CrashLoopBackOff']) | length > 0)
