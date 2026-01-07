@@ -1,0 +1,45 @@
+---
+- hosts: localhost
+  gather_facts: no
+  collections:
+    - kubernetes.core
+
+  tasks:
+    - name: Gather all pods in the namespace
+      kubernetes.core.k8s_info:
+        namespace: openshift-marketplace
+        kind: Pod
+      register: all_pods
+
+    - name: Identify pods belonging to the affected workload
+      set_fact:
+        pods_to_delete: "{{ all_pods.resources | selectattr('metadata.name', 'contains', 'community-operators-bfxl9') | map(attribute='metadata.name') | list }}"
+
+    - name: Delete affected pods
+      kubernetes.core.k8s:
+        namespace: openshift-marketplace
+        kind: Pod
+        name: "{{ item }}"
+        state: absent
+      loop: "{{ pods_to_delete }}"
+      when: pods_to_delete | length > 0
+
+    - name: Wait for pods to be running after deletion
+      kubernetes.core.k8s_info:
+        namespace: openshift-marketplace
+        kind: Pod
+        label_selectors:
+          - app=community-operators-bfxl9
+      register: pods_after_delete
+      until: >
+        pods_after_delete.resources | map(attribute='status.phase') | list | unique | length == 1
+        and pods_after_delete.resources | map(attribute='status.phase') | list | first == 'Running'
+      retries: 30
+      delay: 10
+
+    - name: Verify all pods are running
+      assert:
+        that:
+          - pods_after_delete.resources | map(attribute='status.phase') | list | unique | length == 1
+          - pods_after_delete.resources | map(attribute='status.phase') | list | first == 'Running'
+        fail_msg: "Some pods are still not running after the fix."
