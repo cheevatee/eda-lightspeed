@@ -1,0 +1,74 @@
+---
+- name: Fix BackOff events for redhat-operators-8vhkm
+  hosts: localhost
+  gather_facts: no
+  collections:
+    - kubernetes.core
+
+  tasks:
+    - name: Gather pods for the workload
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=redhat-operators-8vhkm
+      register: pod_info
+
+    - name: Set list of pod names
+      set_fact:
+        pod_names: "{{ pod_info.resources | map(attribute='metadata.name') | list }}"
+
+    - name: Delete pods with BackOff or CrashLoopBackOff
+      kubernetes.core.k8s:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-marketplace
+        name: "{{ item }}"
+        state: absent
+      loop: "{{ pod_names }}"
+      when: >
+        pod_info.resources
+        | selectattr('metadata.name', 'equalto', item)
+        | map(attribute='status.phase')
+        | list
+        | first
+        in ['Pending', 'Running', 'Succeeded', 'Failed', 'Unknown']
+      register: delete_results
+
+    - name: Wait for pod recreation
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-marketplace
+        name: "{{ item }}"
+      loop: "{{ pod_names }}"
+      register: wait_results
+      until: >
+        wait_results.resources
+        | selectattr('metadata.name', 'equalto', item)
+        | map(attribute='status.phase')
+        | list
+        | first
+        == 'Running'
+      retries: 10
+      delay: 15
+
+    - name: Verify no pods are in BackOff or CrashLoopBackOff
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=redhat-operators-8vhkm
+      register: final_pod_info
+
+    - name: Fail if any pod is still in BackOff or CrashLoopBackOff
+      fail:
+        msg: "Some pods are still in BackOff or CrashLoopBackOff state."
+      when: >
+        final_pod_info.resources
+        | map(attribute='status.phase')
+        | list
+        | any
+        | bool
