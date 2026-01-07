@@ -1,0 +1,63 @@
+---
+- name: Fix BackOff event for community-operators-nxc4r
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Gather pods for community-operators-nxc4r
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=community-operators-nxc4r
+      register: pod_info
+
+    - name: Identify pods with ImagePullBackOff or CrashLoopBackOff
+      set_fact:
+        backoff_pods: "{{ backoff_pods | default([]) + [item.metadata.name] }}"
+      loop: "{{ pod_info.resources }}"
+      when: >
+        item.status.containerStatuses is defined and
+        (item.status.containerStatuses | selectattr('state.waiting', 'defined') | map(attribute='state.waiting.reason') | list | intersect(['ImagePullBackOff', 'CrashLoopBackOff'])) | length > 0
+
+    - name: Delete problematic pods to trigger restart
+      kubernetes.core.k8s:
+        state: absent
+        kind: Pod
+        namespace: openshift-marketplace
+        name: "{{ item }}"
+      loop: "{{ backoff_pods }}"
+      when: backoff_pods | length > 0
+
+    - name: Wait for all pods to be Running
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=community-operators-nxc4r
+      register: pod_wait
+      until: >
+        pod_wait.resources | map(attribute='status.phase') | list | unique | length == 1 and
+        pod_wait.resources | map(attribute='status.phase') | list | first == 'Running'
+      retries: 10
+      delay: 15
+
+    - name: Verify no pods still have backoff status
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=community-operators-nxc4r
+      register: final_pod_info
+
+    - name: Identify backoff pods after fix
+      set_fact:
+        backoff_pods_after: "{{ backoff_pods_after | default([]) + [item.metadata.name] }}"
+      loop: "{{ final_pod_info.resources }}"
+      when: >
+        item.status.containerStatuses is defined and
+        (item.status.containerStatuses | selectattr('state.waiting', 'defined') | map(attribute='state.waiting.reason') | list | intersect(['ImagePullBackOff', 'CrashLoopBackOff'])) | length > 0
+
+    - name: Fail if backoff pods remain
+      fail:
+        msg: "Backoff pods still present: {{ backoff_pods_after }}"
+      when: backoff_pods_after | length > 0
