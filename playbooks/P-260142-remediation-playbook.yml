@@ -1,0 +1,55 @@
+---
+- name: Fix BackOff event for redhat-marketplace-p4qc2
+  hosts: localhost
+  gather_facts: no
+  tasks:
+
+    - name: Gather current pods for the workload
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=redhat-marketplace-p4qc2
+      register: pods_info
+
+    - name: Set pod names to delete
+      set_fact:
+        pod_names: "{{ pods_info.resources | map(attribute='metadata.name') | list }}"
+
+    - name: Delete pods to trigger restart
+      kubernetes.core.k8s:
+        state: absent
+        definition:
+          apiVersion: v1
+          kind: Pod
+          metadata:
+            name: "{{ item }}"
+            namespace: openshift-marketplace
+      loop: "{{ pod_names }}"
+
+    - name: Wait for pods to be running
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=redhat-marketplace-p4qc2
+      register: pod_status
+      until: pod_status.resources | selectattr('status.phase', 'equalto', 'Running') | list | length == pod_names | length
+      retries: 30
+      delay: 10
+
+    - name: Verify no pods are in BackOff or CrashLoopBackOff
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=redhat-marketplace-p4qc2
+      register: final_pods
+
+    - name: Fail if any pod remains in BackOff or CrashLoopBackOff
+      fail:
+        msg: "Pods still in BackOff or CrashLoopBackOff: {{ final_pods.resources | selectattr('status.phase', 'equalto', 'Pending') | list }}"
+      when: final_pods.resources | selectattr('status.phase', 'equalto', 'Pending') | list | length > 0
