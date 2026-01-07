@@ -1,0 +1,67 @@
+---
+- name: Fix BackOff event for certified-operators-2749k
+  hosts: localhost
+  gather_facts: no
+  tasks:
+
+    - name: Gather current pods for the workload
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=certified-operators-2749k
+      register: pod_info
+
+    - name: Identify pods in ImagePullBackOff or CrashLoopBackOff
+      set_fact:
+        pods_to_delete: >-
+          {{ pod_info.resources
+             | selectattr('status.containerStatuses', 'defined')
+             | selectattr('status.containerStatuses', 'selectattr', 'state.waiting.reason', 'in', ['ImagePullBackOff', 'CrashLoopBackOff'])
+             | map(attribute='metadata.name')
+             | list }}
+
+    - name: Delete pods that are back‑offing
+      kubernetes.core.k8s:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-marketplace
+        name: "{{ item }}"
+        state: absent
+      loop: "{{ pods_to_delete }}"
+      when: pods_to_delete | length > 0
+
+    - name: Wait for all pods to reach Running state
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=certified-operators-2749k
+      register: pod_info_wait
+      until: >-
+        pod_info_wait.resources
+        | selectattr('status.containerStatuses', 'defined')
+        | selectattr('status.containerStatuses', 'selectattr', 'state.waiting.reason', 'in', ['ImagePullBackOff', 'CrashLoopBackOff'])
+        | list | length == 0
+      retries: 30
+      delay: 10
+
+    - name: Verify no pods remain in BackOff state
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=certified-operators-2749k
+      register: pod_info_verify
+
+    - name: Assert that all pods are running
+      assert:
+        that:
+          - pod_info_verify.resources
+            | selectattr('status.containerStatuses', 'defined')
+            | selectattr('status.containerStatuses', 'selectattr', 'state.waiting.reason', 'in', ['ImagePullBackOff', 'CrashLoopBackOff'])
+            | list | length == 0
+        fail_msg: "Some pods are still in BackOff state"
