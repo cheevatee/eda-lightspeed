@@ -1,0 +1,64 @@
+---
+- name: Fix BackOff event for community-operators-chdwt
+  hosts: localhost
+  gather_facts: no
+  tasks:
+
+    - name: Gather pods of the workload
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=community-operators-chdwt
+      register: pod_info
+
+    - name: Identify pods with backoff
+      set_fact:
+        backoff_pods: "{{ backoff_pods | default([]) + [item.metadata.name] }}"
+      loop: "{{ pod_info.resources }}"
+      when: >
+        (item.status.containerStatuses | selectattr('state.waiting', 'defined') |
+         map(attribute='state.waiting.reason') | list | intersect(['ImagePullBackOff', 'CrashLoopBackOff'])) | length > 0
+
+    - name: Delete pods with backoff
+      kubernetes.core.k8s:
+        state: absent
+        kind: Pod
+        namespace: openshift-marketplace
+        name: "{{ item }}"
+      loop: "{{ backoff_pods }}"
+      when: backoff_pods | length > 0
+
+    - name: Wait for deployment to be ready
+      kubernetes.core.k8s_info:
+        api_version: apps/v1
+        kind: Deployment
+        namespace: openshift-marketplace
+        name: community-operators-chdwt
+      register: deployment_info
+      until: >
+        (deployment_info.resources[0].status.availableReplicas | int) ==
+        (deployment_info.resources[0].status.replicas | int)
+      retries: 10
+      delay: 30
+
+    - name: Gather pods after restart
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=community-operators-chdwt
+      register: final_pod_info
+
+    - name: Compute non‑running pods
+      set_fact:
+        non_running_pods: "{{ final_pod_info.resources | selectattr('status.phase', 'not equalto', 'Running') | map(attribute='metadata.name') | list }}"
+
+    - name: Verify all pods are running
+      assert:
+        that:
+          - (final_pod_info.resources | selectattr('status.phase', 'equalto', 'Running') | list | length) ==
+            (deployment_info.resources[0].spec.replicas | int)
+        fail_msg: "Some pods are not running: {{ non_running_pods }}"
