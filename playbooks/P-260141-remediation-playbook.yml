@@ -1,0 +1,58 @@
+- name: Fix BackOff event for redhat-marketplace-nsnwc
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Gather current deployment
+      kubernetes.core.k8s_info:
+        api_version: apps/v1
+        kind: Deployment
+        namespace: openshift-marketplace
+        name: redhat-marketplace-nsnwc
+      register: deployment_info
+
+    - name: Set deployment definition
+      set_fact:
+        deployment_def: "{{ deployment_info.resources[0] }}"
+
+    - name: Add restart annotation
+      set_fact:
+        new_annotation: "{{ deployment_def.metadata.annotations | default({}) | combine({'kubectl.kubernetes.io/restartedAt': lookup('pipe','date -u +%Y-%m-%dT%H:%M:%SZ')}) }}"
+
+    - name: Update deployment with new annotation
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: redhat-marketplace-nsnwc
+            namespace: openshift-marketplace
+            annotations: "{{ new_annotation }}"
+          spec: "{{ deployment_def.spec }}"
+
+    - name: Wait for deployment rollout
+      kubernetes.core.k8s_info:
+        api_version: apps/v1
+        kind: Deployment
+        namespace: openshift-marketplace
+        name: redhat-marketplace-nsnwc
+      register: rollout_info
+      until: rollout_info.resources[0].status.availableReplicas | int == rollout_info.resources[0].status.replicas | int
+      retries: 10
+      delay: 15
+
+    - name: Gather pods for verification
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=redhat-marketplace-nsnwc
+      register: pod_info
+
+    - name: Fail if any pod in BackOff
+      fail:
+        msg: "Pods still in BackOff state"
+      when: >
+        pod_info.resources | selectattr('status.phase', 'equalto', 'Pending') | list | length > 0 or
+        pod_info.resources | selectattr('status.containerStatuses', 'defined') | map(attribute='containerStatuses') | list | flatten | selectattr('state.waiting.reason', 'in', ['ImagePullBackOff', 'CrashLoopBackOff']) | list | length > 0
