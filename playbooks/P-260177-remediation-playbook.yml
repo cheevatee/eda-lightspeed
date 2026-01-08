@@ -1,0 +1,42 @@
+- name: Fix BackOff event for redhat-operators-2ds5h
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Gather pods for workload
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=redhat-operators-2ds5h
+      register: pod_info
+
+    - name: Delete pods with backoff
+      kubernetes.core.k8s:
+        state: absent
+        kind: Pod
+        namespace: openshift-marketplace
+        name: "{{ item.metadata.name }}"
+      loop: "{{ pod_info.resources }}"
+      when: >
+        (item.status.containerStatuses is defined) and
+        (item.status.containerStatuses | selectattr('state.waiting.reason', 'in', ['ImagePullBackOff', 'CrashLoopBackOff']) | list | length > 0)
+
+    - name: Wait for pods to be running
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: openshift-marketplace
+        label_selectors:
+          - app=redhat-operators-2ds5h
+      register: pod_status
+      until: >
+        pod_status.resources | map(attribute='status.phase') | list | unique | length == 1 and
+        pod_status.resources | map(attribute='status.phase') | list | first == 'Running'
+      retries: 10
+      delay: 15
+
+    - name: Verify no pods in backoff
+      assert:
+        that:
+          - pod_status.resources | map(attribute='status.phase') | list | unique | length == 1
+          - pod_status.resources | map(attribute='status.phase') | list | first == 'Running'
+        fail_msg: "Pods still in backoff state"
